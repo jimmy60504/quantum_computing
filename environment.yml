@@ -1,0 +1,9 @@
+name: quantum-computing
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - qiskit==2.3.0
+
