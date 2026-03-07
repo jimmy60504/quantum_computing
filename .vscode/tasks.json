@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run hello_qiskit.py",
+      "type": "shell",
+      "command": "/Users/jimmy/miniconda3/bin/conda",
+      "args": [
+        "run",
+        "-n",
+        "quantum-computing",
+        "python",
+        "${workspaceFolder}/hello_qiskit.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

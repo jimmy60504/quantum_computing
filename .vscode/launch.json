@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run hello_qiskit.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/hello_qiskit.py",
+      "console": "integratedTerminal",
+      "python": "/Users/jimmy/miniconda3/envs/quantum-computing/bin/python"
+    },
+    {
+      "name": "Run current Python file",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "python": "/Users/jimmy/miniconda3/envs/quantum-computing/bin/python"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "python.defaultInterpreterPath": "/Users/jimmy/miniconda3/envs/quantum-computing/bin/python",
+  "python.terminal.activateEnvironment": true
+}
