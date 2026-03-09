@@ -52,6 +52,22 @@ python qft_demo.py
 
 This also runs locally with Qiskit's built-in simulator.
 
+## 研究知識庫（KB）
+
+專案已在 `kb/` 提供一套輕量知識庫，先用於研究方向整理：
+
+- `kb/README.md`：KB 使用方式
+- `kb/research_directions.md`：研究方向清單
+- `kb/directions/`：方向詳細筆記
+- `kb/experiment_plans.md`：實驗規劃（目前暫不啟用）
+- `kb/templates/`：可重用模板
+
+入口：
+
+```bash
+open kb/README.md
+```
+
 ## Why Conda instead of Docker
 
 This project currently targets local development. Conda is the simpler choice
