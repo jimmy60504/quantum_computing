@@ -19,5 +19,21 @@
   non-interactively.
 - Keep `README.md` and `environment.yml` in sync when dependencies change.
 - Do not introduce Docker unless the user explicitly asks for containerization.
+- The user has explicitly requested Docker packaging for remote `gx10` work, so
+  Docker is allowed there.
 - Keep the repository lightweight and suitable for local experimentation unless
   the user requests a fuller project scaffold.
+
+## Remote host entry
+
+- Use `ssh gx10` when the user wants work done on the remote GPU-capable machine.
+- See `kb/compute_hosts.md` for the latest recorded connection and environment
+  details.
+- As of `2026-03-25`, `gx10` is an Ubuntu `24.04.4` `aarch64` machine with an
+  `NVIDIA GB10`, CUDA `13.0`, system Python `3.12.3`, and no Conda installed.
+- For this repository on `gx10`, prefer Docker over bare-host Python setup.
+- When building containers for `gx10`, prefer NVIDIA Container Registry
+  (`nvcr.io`) CUDA images that support Ubuntu 24.04 and ARM64 rather than
+  defaulting to a generic Docker Hub Python base image.
+- Keep the Conda workflow as the default local development path unless the user
+  asks to containerize local work too.
