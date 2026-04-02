@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 
-SEED = 0  # Replace with your student ID if you need assignment-specific randomness.
+SEED = 11224001
 NUM_SAMPLES = 1000
 
 
