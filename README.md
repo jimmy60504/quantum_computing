@@ -63,6 +63,14 @@ docker run --rm --gpus all \
   python qiskit_aer_gpu_demo.py
 ```
 
+Or run it on `gx10` through the wrapper:
+
+```bash
+ssh gx10
+cd ~/quantum_computing
+./scripts/gx10_aer_demo.sh
+```
+
 You can scale the demo circuit up when you want a heavier benchmark:
 
 ```bash
@@ -74,6 +82,16 @@ docker run --rm --gpus all \
   -e AER_DEMO_LAYERS=4 \
   quantum-gx10:aer-gpu \
   python qiskit_aer_gpu_demo.py
+```
+
+Wrapper scripts are also available for common `gx10` tasks:
+
+```bash
+ssh gx10
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1_sample.py
+./scripts/gx10_run_py.sh pennylane_hello.py
+GX10_IMAGE=quantum-gx10:aer-gpu ./scripts/gx10_run_py.sh qiskit_aer_gpu_demo.py
 ```
 
 Open a shell in the container with the repo mounted:
