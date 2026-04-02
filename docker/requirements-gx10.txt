@@ -1,7 +1,9 @@
+mlflow
 qiskit==2.3.0
 qiskit-machine-learning
 pennylane==0.44.1
 pylatexenc
+tqdm
 matplotlib
 sympy
 ipykernel

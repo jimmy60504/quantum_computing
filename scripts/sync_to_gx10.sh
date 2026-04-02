@@ -11,4 +11,10 @@ REMOTE_REPO_DIR="${GX10_REPO_DIR:-/home/jimmy/quantum_computing}"
 rsync -av --delete \
   --exclude '.git' \
   --exclude '.DS_Store' \
+  --exclude '__pycache__' \
+  --exclude '*.pyc' \
+  --exclude 'mlruns' \
+  --exclude 'mlartifacts' \
+  --exclude 'mlflow.db' \
+  --exclude 'HW1/artifacts' \
   "${REPO_ROOT}/" "${REMOTE_HOST}:${REMOTE_REPO_DIR}/"

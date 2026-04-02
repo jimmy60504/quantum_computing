@@ -22,6 +22,7 @@ if [[ ! -f "${REPO_ROOT}/${PYTHON_FILE}" ]]; then
 fi
 
 docker run --rm --gpus all \
+  --user "$(id -u):$(id -g)" \
   --ipc=host \
   --ulimit memlock=-1 \
   --ulimit stack=67108864 \

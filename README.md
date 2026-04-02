@@ -199,6 +199,34 @@ close to the `|1>` state. It is meant to be the smallest useful PennyLane
 example in the repository: device, QNode, differentiable parameter, loss
 function, and optimizer are all present in one file.
 
+## Run HW1 Problem 1 baseline
+
+On `gx10`:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py
+```
+
+This script now logs params, per-epoch MSE, and a loss-curve artifact to
+MLflow. By default it uses a local SQLite backend at `./mlflow.db`.
+The sync helper excludes `mlflow.db`, `mlartifacts/`, and `HW1/artifacts/`
+because they are run outputs rather than source files.
+
+To inspect the runs on `gx10`:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_mlflow_ui.sh
+```
+
+If you want a different port:
+
+```bash
+cd ~/quantum_computing
+MLFLOW_PORT=5001 ./scripts/gx10_mlflow_ui.sh
+```
+
 ## Run the QFT demo
 
 ```bash
