@@ -8,5 +8,6 @@ dependencies:
   - matplotlib
   - sympy
   - pip:
+      - pennylane==0.44.1
       - qiskit==2.3.0
       - pylatexenc

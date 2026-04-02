@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1.7
+
+ARG BASE_IMAGE=quantum-gx10:test
+ARG QISKIT_AER_REF=0.17.2
+
+FROM ${BASE_IMAGE}
+
+ARG QISKIT_AER_REF
+
+WORKDIR /opt
+
+COPY docker/patch_qiskit_aer_for_gx10.py /tmp/patch_qiskit_aer_for_gx10.py
+
+RUN python -m pip install "conan<2.0.0" scikit-build ninja pybind11 && \
+    git clone --branch ${QISKIT_AER_REF} --depth 1 https://github.com/Qiskit/qiskit-aer.git /opt/qiskit-aer && \
+    cd /opt/qiskit-aer && \
+    python /tmp/patch_qiskit_aer_for_gx10.py /opt/qiskit-aer && \
+    AER_THRUST_BACKEND=CUDA AER_CUDA_ARCH=8.6+PTX python setup.py bdist_wheel -- -- && \
+    python -m pip install dist/qiskit_aer-*.whl && \
+    rm -rf /opt/qiskit-aer /tmp/patch_qiskit_aer_for_gx10.py
+
+WORKDIR /workspace
+
+COPY qiskit_aer_gpu_demo.py README.md ./
+
+CMD ["python", "qiskit_aer_gpu_demo.py"]

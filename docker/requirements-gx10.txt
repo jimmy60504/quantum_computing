@@ -1,6 +1,6 @@
 qiskit==2.3.0
 qiskit-machine-learning
-pennylane
+pennylane==0.44.1
 pylatexenc
 matplotlib
 sympy
