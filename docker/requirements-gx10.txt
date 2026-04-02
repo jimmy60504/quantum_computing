@@ -1,0 +1,7 @@
+qiskit==2.3.0
+qiskit-machine-learning
+pennylane
+pylatexenc
+matplotlib
+sympy
+ipykernel

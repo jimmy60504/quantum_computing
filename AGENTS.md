@@ -35,5 +35,7 @@
 - When building containers for `gx10`, prefer NVIDIA Container Registry
   (`nvcr.io`) CUDA images that support Ubuntu 24.04 and ARM64 rather than
   defaulting to a generic Docker Hub Python base image.
+- A first working image now exists via the repository `Dockerfile`, verified on
+  `gx10` with `nvcr.io/nvidia/pytorch:26.03-py3`.
 - Keep the Conda workflow as the default local development path unless the user
   asks to containerize local work too.
