@@ -14,12 +14,17 @@ const currentStepLabel = document.getElementById("current-step-label");
 const experimentMeta = document.getElementById("experiment-meta");
 const overviewImage = document.getElementById("overview-image");
 const circuitImage = document.getElementById("circuit-image");
+const previewableImages = Array.from(document.querySelectorAll(".previewable-image"));
 const timelineCaption = document.getElementById("timeline-caption");
 const chartEmpty = document.getElementById("chart-empty");
 const loadingPanel = document.getElementById("loading-panel");
 const loadingLabel = document.getElementById("loading-label");
 const loadingPercent = document.getElementById("loading-percent");
 const loadingBar = document.getElementById("loading-bar");
+const imageLightbox = document.getElementById("image-lightbox");
+const imageLightboxImage = document.getElementById("image-lightbox-image");
+const imageLightboxCaption = document.getElementById("image-lightbox-caption");
+const imageLightboxClose = document.getElementById("image-lightbox-close");
 
 const trainOverlayPlot = document.getElementById("train-overlay-plot");
 const testOverlayPlot = document.getElementById("test-overlay-plot");
@@ -39,6 +44,53 @@ let activeLoadToken = 0;
 const defaultOverlayCamera = {
   eye: { x: 1.5, y: 1.3, z: 0.95 },
 };
+
+function openImageLightbox(sourceImage) {
+  if (!imageLightbox || !imageLightboxImage || !sourceImage?.src) {
+    return;
+  }
+
+  imageLightboxImage.src = sourceImage.src;
+  imageLightboxImage.alt = sourceImage.alt || "Preview";
+  if (imageLightboxCaption) {
+    imageLightboxCaption.textContent =
+      sourceImage.dataset.previewCaption || sourceImage.alt || "";
+  }
+  imageLightbox.hidden = false;
+  imageLightbox.setAttribute("aria-hidden", "false");
+}
+
+function closeImageLightbox() {
+  if (!imageLightbox || !imageLightboxImage) {
+    return;
+  }
+
+  imageLightbox.hidden = true;
+  imageLightbox.setAttribute("aria-hidden", "true");
+  imageLightboxImage.removeAttribute("src");
+}
+
+function bindImageLightbox() {
+  previewableImages.forEach((image) => {
+    image.addEventListener("click", () => openImageLightbox(image));
+  });
+
+  imageLightbox?.addEventListener("click", (event) => {
+    const closeRequested =
+      event.target === imageLightbox || event.target?.dataset?.lightboxClose === "true";
+    if (closeRequested) {
+      closeImageLightbox();
+    }
+  });
+
+  imageLightboxClose?.addEventListener("click", closeImageLightbox);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && imageLightbox && !imageLightbox.hidden) {
+      closeImageLightbox();
+    }
+  });
+}
 
 function appendMetaRow(label, value) {
   const wrapper = document.createElement("div");
@@ -697,6 +749,7 @@ async function applyRun(runId) {
 }
 
 async function main() {
+  bindImageLightbox();
   setLoadingState({
     visible: true,
     label: "Booting viewer",

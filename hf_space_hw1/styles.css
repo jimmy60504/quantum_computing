@@ -104,6 +104,39 @@ h2 {
   line-height: 1.25;
 }
 
+.hero-reference {
+  margin-top: 8px;
+  border-top: 1px solid rgba(23, 33, 29, 0.08);
+  padding-top: 8px;
+}
+
+.hero-reference summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  list-style: none;
+}
+
+.hero-reference summary::-webkit-details-marker {
+  display: none;
+}
+
+.hero-reference summary::after {
+  content: "Show";
+  margin-left: 8px;
+  font-size: 0.78rem;
+  color: var(--brand);
+}
+
+.hero-reference[open] summary::after {
+  content: "Hide";
+}
+
+.hero-reference-stack {
+  margin-top: 10px;
+}
+
 .panel-header,
 .section-heading {
   display: flex;
@@ -386,11 +419,83 @@ input[type="range"] {
   border-radius: 18px;
   border: 1px solid rgba(23, 33, 29, 0.08);
   background: white;
+  cursor: zoom-in;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.reference-figure img:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(20, 30, 28, 0.14);
 }
 
 .reference-figure figcaption {
   font-size: 0.9rem;
   color: var(--muted);
+}
+
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 9999;
+}
+
+.image-lightbox[hidden] {
+  display: none !important;
+}
+
+.image-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(23, 33, 29, 0.56);
+  backdrop-filter: blur(4px);
+}
+
+.image-lightbox-dialog {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  width: min(92vw, 1120px);
+  max-height: calc(100vh - 48px);
+  padding: 18px 18px 14px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 252, 245, 0.98);
+  box-shadow: 0 32px 80px rgba(20, 30, 28, 0.35);
+}
+
+.image-lightbox-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 33, 29, 0.08);
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.image-lightbox-image {
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 132px);
+  object-fit: contain;
+  border-radius: 18px;
+  background: white;
+}
+
+.image-lightbox-caption {
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .heatmap-grid {

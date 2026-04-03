@@ -22,6 +22,29 @@
           <p id="page-subtitle" class="muted">
             Loading experiment summary...
           </p>
+          <details class="hero-reference">
+            <summary>Reference</summary>
+            <div class="reference-stack hero-reference-stack">
+              <figure class="reference-figure">
+                <img
+                  id="overview-image"
+                  class="previewable-image"
+                  alt="Data overview"
+                  data-preview-caption="Train/test split overview"
+                />
+                <figcaption>Train/test split overview</figcaption>
+              </figure>
+              <figure class="reference-figure">
+                <img
+                  id="circuit-image"
+                  class="previewable-image"
+                  alt="Circuit diagram"
+                  data-preview-caption="Current circuit diagram"
+                />
+                <figcaption>Current circuit diagram</figcaption>
+              </figure>
+            </div>
+          </details>
         </div>
 
         <div class="panel-card">
@@ -66,21 +89,6 @@
           <dl id="experiment-meta" class="meta-list experiment-scroll"></dl>
         </div>
 
-        <div class="panel-card">
-          <div class="panel-header">
-            <h2>Reference</h2>
-          </div>
-          <div class="reference-stack">
-            <figure class="reference-figure">
-              <img id="overview-image" alt="Data overview" />
-              <figcaption>Train/test split overview</figcaption>
-            </figure>
-            <figure class="reference-figure">
-              <img id="circuit-image" alt="Circuit diagram" />
-              <figcaption>Current circuit diagram</figcaption>
-            </figure>
-          </div>
-        </div>
       </aside>
 
       <main class="content-pane">
@@ -139,6 +147,22 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="image-lightbox" class="image-lightbox" hidden aria-hidden="true">
+      <div class="image-lightbox-backdrop" data-lightbox-close="true"></div>
+      <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Image preview">
+        <button
+          id="image-lightbox-close"
+          class="image-lightbox-close"
+          type="button"
+          aria-label="Close image preview"
+        >
+          ×
+        </button>
+        <img id="image-lightbox-image" class="image-lightbox-image" alt="Preview" />
+        <p id="image-lightbox-caption" class="image-lightbox-caption"></p>
+      </div>
     </div>
 
     <script src="app.js" type="module"></script>
