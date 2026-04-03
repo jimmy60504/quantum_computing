@@ -1,31 +1,40 @@
-# Data Reuploading 回歸分析
+# Problem 1 說明
 
-這題的重點不是把目標函數硬背下來，而是理解一個小型 data reuploading circuit 在困難的 extrapolation split 下，究竟能從資料中推斷出什麼。這個 viewer 會同時用 3D 幾何、error map、loss curve 和 Fourier spectrum 來呈現這個過程。
+這個頁面整理了 Problem 1 的主要結果、訓練過程和幾張輔助圖，方便把不同設定放在同一個地方看。
 
-## 這個網頁在展示什麼
+## 先看這個頁面有什麼
 
-這個頁面主要分成四個部分。左邊是不同超參數設定的結果表，方便直接比較 train / test MSE。中間上方的兩張 3D surface 分別對應 train domain 與 test domain，可以直觀看到模型學到的曲面形狀。右側的 error map 顯示誤差在平面上的分佈；下方的 log-scale loss curve 則讓我們觀察訓練過程中，batch loss 和 test MSE 是如何變化的。Reference 區塊另外提供 train/test split、目前電路圖，以及 Fourier spectrum 的輔助圖。
+左邊的 `Results` 會列出每一組設定的 train / test MSE，現在主要用來比較不同 qubits 和 layers 的表現。中間上方的兩張 3D 圖分別是 train domain 和 test domain 的預測曲面，右邊是對應的 error map。最下面的 loss 圖可以配合 slider 看每一個 step 的變化。左上角收起來的 `Reference` 則放了 train/test split、目前的電路圖，以及 Fourier spectrum。
 
-## 從畫面上最直接看到的現象
+如果只是第一次進來，最簡單的看法是：
 
-從 3D surface 可以直接看到，模型通常能很快把 train 區域貼得相當平順，甚至把 train MSE 壓到非常小；但同一張 surface 延伸到 test domain 之後，常常無法完整跟上真實曲面的下彎趨勢。error map 也會顯示 test 區域的誤差明顯大於 train 區域。另一方面，loss curve 常見的型態是 train loss 持續下降，但 test MSE 很早就進入平台區，這代表後期訓練帶來的改善多半只發生在 train domain。
+1. 先在左邊挑一組設定。
+2. 看上面的 train / test 3D 圖。
+3. 再看右邊 error map 哪裡最亮。
+4. 最後拖下面的 slider，看這個結果是怎麼慢慢長出來的。
 
-## 對這些現象的第一層解讀
+## 目前結果裡，test 最好的是哪一組
 
-這表示這題對模型的要求並不是單純在已知資料中插值，而是要把左下角看到的局部幾何結構外推到右上角的未知區域。因此，即使模型已經在 train 上表現得很好，也不代表它真的理解了 target function 的整體結構。從結果來看，增加 qubits 或 layers 的確會提升表達能力，但效果不是單調的；有些較大的設定會把 train MSE 壓得更低，卻未必換來更好的 test surface。
+目前這四組裡，test 表現最好的是 `q2-l2-e20`。它最後的 test MSE 大約是 `0.2139`，訓練過程中的最低點大約到 `0.1893`。第二好的是 `q2-l3-e20`。`q3-l2-e20` 和 `q3-l3-e20` 就差得比較明顯，test MSE 都高不少。
 
-## 為什麼這個 train/test split 特別難
+這一輪結果看起來很直接：模型不是越大越好。至少在這個 split 上，`q=2` 反而比 `q=3` 更穩。layers 從 2 到 3 有變化，但沒有出現「加深之後就明顯解決 test 問題」的情況。
 
-train domain 位在左下角，目標函數在這裡只露出一小段高值區域的弧面；test domain 則位在右上角，那裡的曲面會明顯往下彎。這代表模型在 train 上很容易貼得很好，但到 test 時卻要把局部幾何外推出去，因此這題本質上更像 extrapolation，而不是一般的 interpolation。
+## 從訓練過程裡會看到什麼
 
-## 這個電路實際上在做什麼
+把 slider 往前拖時，最明顯的現象通常是 train 那邊很快就貼上去，曲面會越來越順，train MSE 也會一路下降。test 那邊就不太一樣了。前面幾步通常會先進步一段，但很快就進入比較平的平台區。下面的 loss 圖也會反映同一件事：train loss 持續往下掉，但 test MSE 並沒有跟著一直改善。
 
-每一筆輸入 `x1, x2` 會先經過一個很小的 classical linear layer，再用 `tanh` 壓到較穩定的範圍，最後轉成量子電路要吃的旋轉角度。每一層都會把同一組角度重新注入到 qubit 上，先做 `RY` / `RZ` 編碼，再做 `CNOT` 糾纏，最後接上可訓練的 `Rot` gate。也就是說，這個模型學的是一種 hybrid representation：前後兩端由 classical layer 做介面轉接，中間則由量子電路提供結構化的非線性特徵。
+這也是這個頁面最值得看的地方。只看最後一個數字，很容易以為模型只是「好或不好」；把 slider 拖過一遍之後，會更清楚它其實有學到東西，只是後面新增的訓練步數大多是在修 train domain，不一定真的幫到 test domain。
 
-## 這個模型其實不知道什麼
+## 為什麼這題會難 fit
 
-電路從來沒有被明確告知 `sin(exp(x1) + x2)` 這個生成規則。它只看得到 train 區域的局部監督訊號，然後試著把那段幾何延伸到 test domain。這也是為什麼 test surface 有時看起來像是「已經很努力了」，卻還是沒辦法真正恢復 sinusoidal 結構：模型學到的是局部形狀，不是底層公式本身。
+問題主要出在 split 本身。train domain 在左下角，那裡看到的是 target function 靠近高值區的一小段弧面；test domain 在右上角，曲面會往下彎得更明顯。也就是說，模型在 train 上學到的是一段局部形狀，接下來卻要把這段形狀延伸到另一塊長得不太一樣的區域。
 
-## 為什麼 Fourier spectrum 很重要
+所以這題比較像 extrapolation，不是單純的 interpolation。這也解釋了為什麼 train MSE 已經很小，test 還是可能卡住。模型不是沒有學到，而是它能從 train 區域拿到的訊息本來就有限。
 
-Fourier view 會從頻率角度解釋同一件事。當訓練後的模型主要只抓到低頻成分時，surface 看起來會平滑、合理，但仍然缺少目標函數裡比較尖銳或更複雜的 oscillatory structure。這和 data reuploading circuit 的理論分析一致：circuit depth 會影響模型可表示的 Fourier modes，因此把 target 和 model 的 spectrum 並排比較，可以幫助解釋為什麼有些設定即使 train loss 很低，test error 還是會停在某個平台附近。
+## 頻譜在看什麼
+
+3D surface 看的是空間裡的形狀，Fourier spectrum 看的是這個形狀裡有哪些頻率成分。這兩個角度放在一起看會比較完整。
+
+就這一輪結果來看，`q2-l2` 和 `q2-l3` 的頻譜明顯比較接近 target。它們抓到的主頻位置和 target 比較一致，只是整體能量還是弱一些。相對地，`q3-l2` 和 `q3-l3` 的頻譜能量小很多，代表它們雖然也學到一些低頻結構，但重建出來的內容更弱、更平，這和它們在 test MSE 上明顯落後是同一個方向。
+
+所以頻譜圖在這裡的用途，不只是補一張漂亮的圖，而是幫忙確認 3D surface 上看到的現象：`q2-*` 這兩組不只是表面上看起來比較像，它們在主要頻率成分上也更接近 target；`q3-*` 這兩組則比較像只抓到了一個更弱、更平滑的近似面。
