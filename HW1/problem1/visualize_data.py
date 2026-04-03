@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from .sample import NUM_SAMPLES, SEED, sample_inputs, target_function
+try:
+    from .sample import NUM_SAMPLES, SEED, sample_inputs, target_function
+except ImportError:  # pragma: no cover - direct script execution
+    from sample import NUM_SAMPLES, SEED, sample_inputs, target_function
 
 OUTPUT_PATH = Path(__file__).with_name("assets") / "problem1_data_overview.png"
 

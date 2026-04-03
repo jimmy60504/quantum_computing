@@ -291,18 +291,27 @@ function makeSurfaceLayout(title, domainKey, xRange, yRange) {
         title: "x1",
         range: xRange,
         gridcolor: "rgba(23,33,29,0.10)",
+        linecolor: "rgba(23,33,29,0.42)",
+        tickcolor: "rgba(23,33,29,0.42)",
+        zerolinecolor: "rgba(23,33,29,0.26)",
         zeroline: false,
       },
       yaxis: {
         title: "x2",
         range: yRange,
         gridcolor: "rgba(23,33,29,0.10)",
+        linecolor: "rgba(23,33,29,0.42)",
+        tickcolor: "rgba(23,33,29,0.42)",
+        zerolinecolor: "rgba(23,33,29,0.26)",
         zeroline: false,
       },
       zaxis: {
         title: "value",
         range: [-1.5, 1.5],
         gridcolor: "rgba(23,33,29,0.10)",
+        linecolor: "rgba(23,33,29,0.42)",
+        tickcolor: "rgba(23,33,29,0.42)",
+        zerolinecolor: "rgba(23,33,29,0.26)",
         zeroline: false,
       },
       camera: cloneCamera(overlayCameraStates[domainKey] || defaultOverlayCamera),
@@ -569,7 +578,7 @@ function refreshStepState(data, index) {
     trainOverlayPlot,
     "train",
     trainPredictionGrid,
-    getDomainPoints(data, "train", trainTargetGrid),
+    current.train_batch_points || getDomainPoints(data, "train", trainTargetGrid),
     "Train surface vs train samples"
   );
   renderOverlayPlot(

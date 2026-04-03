@@ -19,7 +19,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm.auto import tqdm
 
-from .sample import NUM_SAMPLES, SEED, sample_inputs, target_function
+try:
+    from .sample import NUM_SAMPLES, SEED, sample_inputs, target_function
+except ImportError:  # pragma: no cover - direct script execution on gx10
+    from sample import NUM_SAMPLES, SEED, sample_inputs, target_function
 
 TRAIN_RANGES = np.array([0.0, 0.5] * 2).reshape(2, 2)
 TEST_RANGES = np.array([0.5, 1.0] * 2).reshape(2, 2)
@@ -159,6 +162,10 @@ def resolve_viewer_export_path(config: Config) -> Path:
     return Path("hf_space_hw1") / "runtime" / f"{make_default_export_stem(config)}.json"
 
 
+def resolve_runtime_circuit_path(viewer_export_path: Path) -> Path:
+    return viewer_export_path.with_name(f"{viewer_export_path.stem}_circuit.png")
+
+
 def snapshot_model_state(model: DataReuploadingRegressor) -> dict[str, list]:
     return {
         "input_projection_weight": model.input_projection.weight.detach().cpu().tolist(),
@@ -258,6 +265,14 @@ def serialize_dataset_points(dataset: TensorDataset) -> dict[str, list[float]]:
     }
 
 
+def serialize_batch_points(features: torch.Tensor, labels: torch.Tensor) -> dict[str, list[float]]:
+    return {
+        "x1": features[:, 0].detach().cpu().tolist(),
+        "x2": features[:, 1].detach().cpu().tolist(),
+        "y": labels[:, 0].detach().cpu().tolist(),
+    }
+
+
 def make_loss_curve(loss_history: list[dict[str, float]], output_path: Path) -> Path:
     epochs = [entry["epoch"] for entry in loss_history]
     train_mse = [entry["train_mse"] for entry in loss_history]
@@ -328,8 +343,8 @@ def make_prediction_heatmap(
 def write_viewer_export(
     config: Config,
     viewer_export_path: Path,
+    runtime_circuit_path: Path,
     timeline_steps: list[dict[str, object]],
-    train_points: dict[str, list[float]],
     test_points: dict[str, list[float]],
 ) -> Path:
     viewer_export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -350,14 +365,13 @@ def write_viewer_export(
             "note": "Slider steps correspond to exported training batches."
         },
         "assets": {
-            "circuit": "runtime/problem1_circuit.png",
+            "circuit": f"runtime/{runtime_circuit_path.name}",
             "data_overview": "assets/problem1_data_overview.png"
         },
         "grid": {
             "grid_size": config.heatmap_grid_size
         },
         "samples": {
-            "train": train_points,
             "test": test_points,
         },
         "timeline_steps": timeline_steps,
@@ -449,6 +463,7 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
         "batch": snapshot["batch"],
         "global_step": snapshot["global_step"],
         "batch_loss": snapshot["batch_loss"],
+        "train_batch_points": snapshot["train_batch_points"],
         "train_mse": train_mse,
         "test_mse": test_mse,
         "heatmaps": heatmaps,
@@ -509,7 +524,6 @@ def train(config: Config, num_samples: int) -> None:
     torch.manual_seed(SEED)
 
     train_dataset, test_dataset = make_datasets(num_samples)
-    train_points = serialize_dataset_points(train_dataset)
     test_points = serialize_dataset_points(test_dataset)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
@@ -571,11 +585,11 @@ def train(config: Config, num_samples: int) -> None:
         hf_runtime_dir = Path("hf_space_hw1") / "runtime"
         hf_runtime_dir.mkdir(parents=True, exist_ok=True)
         viewer_export_path = resolve_viewer_export_path(config)
+        runtime_circuit_path = resolve_runtime_circuit_path(viewer_export_path)
         viewer_manifest_path = Path("hf_space_hw1") / "runtime" / "viewer_manifest.json"
         loss_curve_path = artifact_dir / "problem1_loss_curve.png"
         circuit_path = artifact_dir / "problem1_circuit.png"
         heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
-        hf_circuit_path = hf_runtime_dir / "problem1_circuit.png"
 
         global_step = 0
         for epoch in range(1, config.epochs + 1):
@@ -611,6 +625,7 @@ def train(config: Config, num_samples: int) -> None:
                             "batch": batch_index,
                             "global_step": global_step,
                             "batch_loss": batch_loss,
+                            "train_batch_points": serialize_batch_points(features, labels),
                             "model_state": snapshot_model_state(model),
                         }
                     )
@@ -632,6 +647,7 @@ def train(config: Config, num_samples: int) -> None:
                         "batch": last_batch_index,
                         "global_step": global_step,
                         "batch_loss": last_batch_loss,
+                        "train_batch_points": serialize_batch_points(features, labels),
                         "model_state": snapshot_model_state(model),
                     }
                 )
@@ -652,8 +668,8 @@ def train(config: Config, num_samples: int) -> None:
             write_viewer_export(
                 config,
                 viewer_export_path,
+                runtime_circuit_path,
                 timeline_steps,
-                train_points,
                 test_points,
             )
             update_viewer_manifest(
@@ -684,13 +700,13 @@ def train(config: Config, num_samples: int) -> None:
         )
         make_loss_curve(loss_history, loss_curve_path)
         make_circuit_diagram(model, train_dataset[0][0], circuit_path)
-        make_circuit_diagram(model, train_dataset[0][0], hf_circuit_path)
+        make_circuit_diagram(model, train_dataset[0][0], runtime_circuit_path)
         make_prediction_heatmap(final_heatmap_grids["test"], heatmap_path)
         write_viewer_export(
             config,
             viewer_export_path,
+            runtime_circuit_path,
             timeline_steps,
-            train_points,
             test_points,
         )
         update_viewer_manifest(

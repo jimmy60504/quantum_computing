@@ -43,7 +43,7 @@ for q in "${QUBITS[@]}"; do
 
     (
       cd "${REPO_ROOT}"
-      ./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py \
+      ./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
         --device "${DEVICE}" \
         --diff-method "${DIFF_METHOD}" \
         --num-qubits "${q}" \

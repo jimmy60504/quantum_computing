@@ -90,7 +90,7 @@ Wrapper scripts are also available for common `gx10` tasks:
 ./scripts/sync_to_gx10.sh
 ssh gx10
 cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1_sample.py
+./scripts/gx10_run_py.sh HW1/problem1/sample.py
 ./scripts/gx10_run_py.sh pennylane_hello.py
 GX10_IMAGE=quantum-gx10:aer-gpu ./scripts/gx10_run_py.sh qiskit_aer_gpu_demo.py
 ```
@@ -106,7 +106,7 @@ Then on `gx10`:
 ```bash
 ssh gx10
 cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1_sample.py
+./scripts/gx10_run_py.sh HW1/problem1/sample.py
 ```
 
 Open a shell in the container with the repo mounted:
@@ -205,7 +205,7 @@ On `gx10`:
 
 ```bash
 cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py
 ```
 
 This script now logs params, per-epoch MSE, and a loss-curve artifact to
@@ -217,7 +217,7 @@ You can switch PennyLane simulator and differentiation mode from the CLI:
 
 ```bash
 cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py \
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
 
 ## Scaffold HW1 Problem 2
 
@@ -248,7 +248,7 @@ Or try the current faster-to-scale baseline:
 
 ```bash
 cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py \
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
   --device lightning.qubit \
   --diff-method adjoint
 ```
