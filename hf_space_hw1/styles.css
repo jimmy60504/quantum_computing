@@ -208,7 +208,7 @@ input[type="range"] {
 
 .heatmap-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 2.2fr) minmax(300px, 0.9fr);
   gap: 16px;
 }
 
@@ -228,6 +228,10 @@ input[type="range"] {
 .plot-surface {
   width: 100%;
   min-height: 360px;
+}
+
+.plot-surface-hero {
+  min-height: 500px;
 }
 
 .plot-surface-wide {

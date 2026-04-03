@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing as mp
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +35,7 @@ class Config:
     diff_method: str | None = None
     viewer_export_path: str | None = None
     viewer_export_every: int = 1
+    render_workers: int = 4
     tracking_uri: str | None = None
     experiment_name: str = "hw1-problem1-datareuploading"
     run_name: str | None = None
@@ -155,6 +158,40 @@ def resolve_viewer_export_path(config: Config) -> Path:
         return Path(config.viewer_export_path)
     return Path("hf_space_hw1") / "runtime" / f"{make_default_export_stem(config)}.json"
 
+
+def snapshot_model_state(model: DataReuploadingRegressor) -> dict[str, list]:
+    return {
+        "input_projection_weight": model.input_projection.weight.detach().cpu().tolist(),
+        "input_projection_bias": model.input_projection.bias.detach().cpu().tolist(),
+        "output_head_weight": model.output_head.weight.detach().cpu().tolist(),
+        "output_head_bias": model.output_head.bias.detach().cpu().tolist(),
+        "feature_scale": model.feature_scale.detach().cpu().tolist(),
+        "weights": model.weights.detach().cpu().tolist(),
+    }
+
+
+def load_model_state_snapshot(
+    model: DataReuploadingRegressor, snapshot_state: dict[str, list]
+) -> DataReuploadingRegressor:
+    with torch.no_grad():
+        model.input_projection.weight.copy_(
+            torch.tensor(snapshot_state["input_projection_weight"], dtype=torch.float32)
+        )
+        model.input_projection.bias.copy_(
+            torch.tensor(snapshot_state["input_projection_bias"], dtype=torch.float32)
+        )
+        model.output_head.weight.copy_(
+            torch.tensor(snapshot_state["output_head_weight"], dtype=torch.float32)
+        )
+        model.output_head.bias.copy_(
+            torch.tensor(snapshot_state["output_head_bias"], dtype=torch.float32)
+        )
+        model.feature_scale.copy_(
+            torch.tensor(snapshot_state["feature_scale"], dtype=torch.float32)
+        )
+        model.weights.copy_(torch.tensor(snapshot_state["weights"], dtype=torch.float32))
+    return model
+
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> float:
     model.eval()
     total_loss = 0.0
@@ -195,6 +232,15 @@ def build_heatmap_grids(
         "target": {"x": x.tolist(), "y": y.tolist(), "z": target_grid.tolist()},
         "prediction": {"x": x.tolist(), "y": y.tolist(), "z": prediction_grid.tolist()},
         "error": {"x": x.tolist(), "y": y.tolist(), "z": error_grid.tolist()},
+    }
+
+
+def serialize_dataset_points(dataset: TensorDataset) -> dict[str, list[float]]:
+    features, labels = dataset.tensors
+    return {
+        "x1": features[:, 0].detach().cpu().tolist(),
+        "x2": features[:, 1].detach().cpu().tolist(),
+        "y": labels[:, 0].detach().cpu().tolist(),
     }
 
 
@@ -269,6 +315,7 @@ def write_viewer_export(
     config: Config,
     viewer_export_path: Path,
     timeline_steps: list[dict[str, object]],
+    test_points: dict[str, list[float]],
 ) -> Path:
     viewer_export_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -297,6 +344,9 @@ def write_viewer_export(
             "y_min": 0.5,
             "y_max": 1.0,
             "grid_size": config.heatmap_grid_size
+        },
+        "samples": {
+            "test": test_points,
         },
         "timeline_steps": timeline_steps,
         "run": {
@@ -346,10 +396,101 @@ def update_viewer_manifest(
     return manifest_path
 
 
+def init_render_worker() -> None:
+    torch.set_num_threads(1)
+    if hasattr(torch, "set_num_interop_threads"):
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
+
+
+def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
+    config_dict = task["config"]
+    snapshot = task["snapshot"]
+    _, test_dataset = make_datasets(int(config_dict["num_samples"]))
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=int(config_dict["batch_size"]),
+        shuffle=False,
+    )
+    model = DataReuploadingRegressor(
+        num_qubits=int(config_dict["num_qubits"]),
+        num_layers=int(config_dict["num_layers"]),
+        hidden_scale=float(config_dict["hidden_scale"]),
+        device_name=str(config_dict["device_name"]),
+        diff_method=str(config_dict["diff_method"]),
+    )
+    load_model_state_snapshot(model, snapshot["model_state"])
+    test_mse = evaluate(model, test_loader, nn.MSELoss())
+    heatmaps = build_heatmap_grids(model, int(config_dict["heatmap_grid_size"]))
+
+    return {
+        "label": snapshot["label"],
+        "epoch": snapshot["epoch"],
+        "batch": snapshot["batch"],
+        "global_step": snapshot["global_step"],
+        "batch_loss": snapshot["batch_loss"],
+        "test_mse": test_mse,
+        "heatmaps": heatmaps,
+    }
+
+
+def render_timeline_snapshots_parallel(
+    config: Config,
+    num_samples: int,
+    timeline_snapshots: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    if not timeline_snapshots:
+        return []
+
+    config_dict = {
+        "num_qubits": config.num_qubits,
+        "num_layers": config.num_layers,
+        "hidden_scale": config.hidden_scale,
+        "device_name": config.device_name,
+        "diff_method": config.diff_method,
+        "heatmap_grid_size": config.heatmap_grid_size,
+        "batch_size": config.batch_size,
+        "num_samples": num_samples,
+    }
+    tasks = [{"config": config_dict, "snapshot": snapshot} for snapshot in timeline_snapshots]
+    worker_count = max(
+        1,
+        min(config.render_workers, len(tasks), os.cpu_count() or 1),
+    )
+
+    if worker_count == 1:
+        iterator = (render_timeline_snapshot(task) for task in tasks)
+        return list(
+            tqdm(
+                iterator,
+                total=len(tasks),
+                desc="render viewer",
+                leave=False,
+                dynamic_ncols=True,
+            )
+        )
+
+    ctx = mp.get_context("spawn")
+    with ctx.Pool(processes=worker_count, initializer=init_render_worker) as pool:
+        iterator = pool.imap(render_timeline_snapshot, tasks)
+        return list(
+            tqdm(
+                iterator,
+                total=len(tasks),
+                desc=f"render viewer x{worker_count}",
+                leave=False,
+                dynamic_ncols=True,
+            )
+        )
+
+
 def train(config: Config, num_samples: int) -> None:
     torch.manual_seed(SEED)
 
     train_dataset, test_dataset = make_datasets(num_samples)
+    test_points = serialize_dataset_points(test_dataset)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
@@ -381,6 +522,7 @@ def train(config: Config, num_samples: int) -> None:
     print(f"mlflow_tracking_uri={tracking_uri}", flush=True)
     print(f"mlflow_experiment={config.experiment_name}", flush=True)
     print("viewer_steps=batch", flush=True)
+    print(f"render_workers={config.render_workers}", flush=True)
     print(flush=True)
 
     with mlflow.start_run(run_name=config.run_name):
@@ -399,12 +541,27 @@ def train(config: Config, num_samples: int) -> None:
                 "diff_method": config.diff_method,
                 "viewer_export_path": config.viewer_export_path,
                 "viewer_export_every": config.viewer_export_every,
+                "render_workers": config.render_workers,
                 "trainable_parameters": trainable_parameters,
             }
         )
 
+        artifact_dir = Path("HW1") / "artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        hf_runtime_dir = Path("hf_space_hw1") / "runtime"
+        hf_runtime_dir.mkdir(parents=True, exist_ok=True)
+        viewer_export_path = resolve_viewer_export_path(config)
+        viewer_manifest_path = Path("hf_space_hw1") / "runtime" / "viewer_manifest.json"
+        loss_curve_path = artifact_dir / "problem1_loss_curve.png"
+        circuit_path = artifact_dir / "problem1_circuit.png"
+        heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
+        hf_circuit_path = hf_runtime_dir / "problem1_circuit.png"
+
         global_step = 0
         for epoch in range(1, config.epochs + 1):
+            epoch_snapshots: list[dict[str, object]] = []
+            last_batch_index = 0
+            last_batch_loss = 0.0
             model.train()
             progress = tqdm(
                 train_loader,
@@ -422,24 +579,22 @@ def train(config: Config, num_samples: int) -> None:
                 optimizer.step()
                 global_step += 1
                 batch_loss = float(loss.item())
+                last_batch_index = batch_index
+                last_batch_loss = batch_loss
                 progress.set_postfix(batch_loss=f"{batch_loss:.6f}", refresh=True)
 
                 if global_step % config.viewer_export_every == 0:
-                    test_mse = evaluate(model, test_loader, loss_fn)
-                    heatmap_grids = build_heatmap_grids(model, config.heatmap_grid_size)
-                    timeline_steps.append(
+                    epoch_snapshots.append(
                         {
                             "label": f"epoch {epoch:02d} batch {batch_index:02d}",
                             "epoch": epoch,
                             "batch": batch_index,
                             "global_step": global_step,
                             "batch_loss": batch_loss,
-                            "test_mse": test_mse,
-                            "heatmaps": heatmap_grids,
+                            "model_state": snapshot_model_state(model),
                         }
                     )
                     mlflow.log_metric("batch_loss", batch_loss, step=global_step)
-                    mlflow.log_metric("step_test_mse", test_mse, step=global_step)
 
             train_mse = evaluate(model, train_loader, loss_fn)
             test_mse = evaluate(model, test_loader, loss_fn)
@@ -448,6 +603,40 @@ def train(config: Config, num_samples: int) -> None:
             )
             mlflow.log_metric("train_mse", train_mse, step=epoch)
             mlflow.log_metric("test_mse", test_mse, step=epoch)
+
+            if not epoch_snapshots or epoch_snapshots[-1]["global_step"] != global_step:
+                epoch_snapshots.append(
+                    {
+                        "label": f"epoch {epoch:02d} batch {last_batch_index:02d}",
+                        "epoch": epoch,
+                        "batch": last_batch_index,
+                        "global_step": global_step,
+                        "batch_loss": last_batch_loss,
+                        "model_state": snapshot_model_state(model),
+                    }
+                )
+
+            rendered_epoch_steps = render_timeline_snapshots_parallel(
+                config,
+                num_samples,
+                epoch_snapshots,
+            )
+            timeline_steps.extend(rendered_epoch_steps)
+            for step in rendered_epoch_steps:
+                mlflow.log_metric(
+                    "step_test_mse",
+                    float(step["test_mse"]),
+                    step=int(step["global_step"]),
+                )
+
+            write_viewer_export(config, viewer_export_path, timeline_steps, test_points)
+            update_viewer_manifest(
+                viewer_manifest_path,
+                viewer_export_path,
+                config,
+                min(entry["test_mse"] for entry in loss_history),
+                timeline_steps,
+            )
 
             if epoch == 1 or epoch % 5 == 0 or epoch == config.epochs:
                 print(
@@ -462,17 +651,6 @@ def train(config: Config, num_samples: int) -> None:
         mlflow.log_metric("best_test_mse", best_test_mse)
         mlflow.log_metric("final_train_mse", final_train_mse)
         mlflow.log_metric("final_test_mse", final_test_mse)
-
-        artifact_dir = Path("HW1") / "artifacts"
-        artifact_dir.mkdir(parents=True, exist_ok=True)
-        hf_runtime_dir = Path("hf_space_hw1") / "runtime"
-        hf_runtime_dir.mkdir(parents=True, exist_ok=True)
-        viewer_export_path = resolve_viewer_export_path(config)
-        viewer_manifest_path = Path("hf_space_hw1") / "runtime" / "viewer_manifest.json"
-        loss_curve_path = artifact_dir / "problem1_loss_curve.png"
-        circuit_path = artifact_dir / "problem1_circuit.png"
-        heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
-        hf_circuit_path = hf_runtime_dir / "problem1_circuit.png"
         final_heatmap_grids = timeline_steps[-1]["heatmaps"] if timeline_steps else build_heatmap_grids(
             model, config.heatmap_grid_size
         )
@@ -480,7 +658,7 @@ def train(config: Config, num_samples: int) -> None:
         make_circuit_diagram(model, train_dataset[0][0], circuit_path)
         make_circuit_diagram(model, train_dataset[0][0], hf_circuit_path)
         make_prediction_heatmap(final_heatmap_grids, heatmap_path)
-        write_viewer_export(config, viewer_export_path, timeline_steps)
+        write_viewer_export(config, viewer_export_path, timeline_steps, test_points)
         update_viewer_manifest(
             viewer_manifest_path,
             viewer_export_path,
@@ -527,6 +705,7 @@ def parse_args() -> tuple[Config, int]:
     parser.add_argument("--num-samples", type=int, default=NUM_SAMPLES)
     parser.add_argument("--viewer-export-path", type=str, default=None)
     parser.add_argument("--viewer-export-every", type=int, default=1)
+    parser.add_argument("--render-workers", type=int, default=4)
     parser.add_argument("--tracking-uri", type=str, default=None)
     parser.add_argument("--experiment-name", type=str, default="hw1-problem1-datareuploading")
     parser.add_argument("--run-name", type=str, default=None)
@@ -546,6 +725,7 @@ def parse_args() -> tuple[Config, int]:
         diff_method=diff_method,
         viewer_export_path=args.viewer_export_path,
         viewer_export_every=args.viewer_export_every,
+        render_workers=args.render_workers,
         tracking_uri=args.tracking_uri,
         experiment_name=args.experiment_name,
         run_name=args.run_name,

@@ -87,22 +87,18 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Right Panel</p>
-              <h2>Heatmap Snapshot</h2>
+              <h2>3D Snapshot</h2>
             </div>
             <p class="muted">
-              Plotly handles the drawing. This export is already wired for
-              numeric grid playback, with raster fallback while the training
-              script still only saves PNG artifacts.
+              The main chart shows a prediction surface with sampled target
+              points in the same 3D space. The side panel keeps a flat error
+              view for fine-grained inspection.
             </p>
           </div>
           <div class="heatmap-grid">
             <article class="heatmap-card">
-              <div class="heatmap-header">Target</div>
-              <div id="target-plot" class="plot-surface"></div>
-            </article>
-            <article class="heatmap-card">
-              <div class="heatmap-header">Prediction</div>
-              <div id="prediction-plot" class="plot-surface"></div>
+              <div class="heatmap-header">Prediction Surface + Target Points</div>
+              <div id="overlay-plot" class="plot-surface plot-surface-hero"></div>
             </article>
             <article class="heatmap-card">
               <div class="heatmap-header">Absolute Error</div>

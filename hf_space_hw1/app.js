@@ -18,13 +18,19 @@ const circuitImage = document.getElementById("circuit-image");
 const timelineCaption = document.getElementById("timeline-caption");
 const chartEmpty = document.getElementById("chart-empty");
 
-const targetPlot = document.getElementById("target-plot");
-const predictionPlot = document.getElementById("prediction-plot");
+const overlayPlot =
+  document.getElementById("overlay-plot") ||
+  document.getElementById("prediction-plot");
 const errorPlot = document.getElementById("error-plot");
 const lossChart = document.getElementById("loss-chart");
 
 let currentManifest = null;
 let currentData = null;
+let overlayCameraState = null;
+
+const defaultOverlayCamera = {
+  eye: { x: 1.5, y: 1.3, z: 0.95 },
+};
 
 function appendMetaRow(label, value) {
   const wrapper = document.createElement("div");
@@ -42,15 +48,6 @@ function linspace(start, stop, count) {
   }
   const step = (stop - start) / (count - 1);
   return Array.from({ length: count }, (_, index) => start + index * step);
-}
-
-function computeTargetGrid(grid) {
-  const x = linspace(grid.x_min, grid.x_max, grid.grid_size);
-  const y = linspace(grid.y_min, grid.y_max, grid.grid_size);
-  const z = y.map((yValue) =>
-    x.map((xValue) => Math.sin(Math.exp(xValue) + yValue))
-  );
-  return { x, y, z };
 }
 
 function makeAxisLayout(title) {
@@ -77,6 +74,9 @@ function makeAxisLayout(title) {
 }
 
 function renderHeatmapPlot(element, spec) {
+  if (!element) {
+    return;
+  }
   Plotly.react(
     element,
     [
@@ -99,7 +99,150 @@ function renderHeatmapPlot(element, spec) {
   );
 }
 
+function getTestPoints(data, fallbackGrid) {
+  const testSamples = data.samples?.test;
+  if (testSamples?.x1?.length && testSamples?.x2?.length && testSamples?.y?.length) {
+    return {
+      x: testSamples.x1,
+      y: testSamples.x2,
+      z: testSamples.y,
+    };
+  }
+
+  const x = fallbackGrid.x || [];
+  const y = fallbackGrid.y || [];
+  const z = fallbackGrid.z || [];
+  const totalPoints = x.length * y.length;
+  if (!totalPoints) {
+    return { x: [], y: [], z: [] };
+  }
+
+  const stride = Math.max(1, Math.ceil(Math.sqrt(totalPoints / 225)));
+  const xs = [];
+  const ys = [];
+  const zs = [];
+  for (let rowIndex = 0; rowIndex < y.length; rowIndex += stride) {
+    for (let colIndex = 0; colIndex < x.length; colIndex += stride) {
+      xs.push(x[colIndex]);
+      ys.push(y[rowIndex]);
+      zs.push(z[rowIndex][colIndex]);
+    }
+  }
+  return { x: xs, y: ys, z: zs };
+}
+
+function flattenGridValues(grid) {
+  return (grid.z || []).flatMap((row) => row);
+}
+
+function makeSurfaceLayout(title) {
+  return {
+    title: { text: title, x: 0.03, xanchor: "left" },
+    margin: { l: 0, r: 0, t: 46, b: 0 },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    scene: {
+      bgcolor: "rgba(0,0,0,0)",
+      xaxis: {
+        title: "x1",
+        range: [0.5, 1.0],
+        gridcolor: "rgba(23,33,29,0.10)",
+        zeroline: false,
+      },
+      yaxis: {
+        title: "x2",
+        range: [0.5, 1.0],
+        gridcolor: "rgba(23,33,29,0.10)",
+        zeroline: false,
+      },
+      zaxis: {
+        title: "value",
+        range: [-1.5, 1.5],
+        gridcolor: "rgba(23,33,29,0.10)",
+        zeroline: false,
+      },
+      camera: overlayCameraState || defaultOverlayCamera,
+      aspectratio: { x: 1.15, y: 1.15, z: 0.7 },
+    },
+    uirevision: "overlay-camera",
+  };
+}
+
+function bindOverlayCameraTracking(element) {
+  if (!element || element.dataset.cameraBound === "true" || typeof element.on !== "function") {
+    return;
+  }
+
+  element.on("plotly_relayout", (eventData) => {
+    if (eventData?.["scene.camera"]) {
+      overlayCameraState = eventData["scene.camera"];
+      return;
+    }
+
+    const liveCamera =
+      element.layout?.scene?.camera || element._fullLayout?.scene?.camera;
+    if (liveCamera) {
+      overlayCameraState = liveCamera;
+    }
+  });
+
+  element.dataset.cameraBound = "true";
+}
+
+function renderOverlayPlot(element, predictionGrid, targetGrid) {
+  if (!element) {
+    return;
+  }
+  const sampledTarget = getTestPoints(currentData || {}, targetGrid);
+
+  Plotly.react(
+    element,
+    [
+      {
+        type: "surface",
+        x: predictionGrid.x,
+        y: predictionGrid.y,
+        z: predictionGrid.z,
+        colorscale: "Viridis",
+        opacity: 0.62,
+        showscale: false,
+        contours: {
+          z: {
+            show: true,
+            usecolormap: false,
+            color: "rgba(255,255,255,0.35)",
+            width: 1,
+          },
+        },
+        hovertemplate:
+          "Prediction surface<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
+      },
+      {
+        type: "scatter3d",
+        mode: "markers",
+        x: sampledTarget.x,
+        y: sampledTarget.y,
+        z: sampledTarget.z,
+        name: "Test targets",
+        marker: {
+          size: 2.2,
+          color: "rgba(239,131,84,0.92)",
+          opacity: 0.82,
+          line: { width: 0.4, color: "rgba(255,255,255,0.55)" },
+        },
+        hovertemplate:
+          "Test target<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
+      },
+    ],
+    makeSurfaceLayout("Prediction surface vs test targets"),
+    { displayModeBar: false, responsive: true }
+  );
+  bindOverlayCameraTracking(element);
+}
+
 function renderLossChart(steps, currentIndex) {
+  if (!lossChart || !chartEmpty) {
+    return;
+  }
   if (!steps.length) {
     chartEmpty.hidden = false;
     chartEmpty.style.display = "flex";
@@ -197,28 +340,32 @@ function renderLossChart(steps, currentIndex) {
 
 function refreshStepState(data, index) {
   const steps = data.timeline_steps || [];
-  const targetGrid = computeTargetGrid(data.grid);
+  const targetGrid = steps[0]?.heatmaps?.target || {
+    x: [],
+    y: [],
+    z: [],
+  };
 
   if (!steps.length) {
     currentStepLabel.textContent = "Final snapshot";
     playbackMode.textContent = "Static export";
     timelineCaption.textContent = "Waiting for raw step grids.";
-
-    renderHeatmapPlot(targetPlot, {
-      title: "Target",
-      ...targetGrid,
-      colorscale: "Viridis",
-    });
-    renderHeatmapPlot(predictionPlot, {
-      title: "Prediction",
-      ...targetGrid,
-      z: targetGrid.z.map((row) => row.map(() => 0)),
-      colorscale: "Viridis",
-    });
+    if (overlayPlot) {
+      Plotly.react(
+        overlayPlot,
+        [],
+        makeSurfaceLayout("Prediction surface vs test targets"),
+        {
+          displayModeBar: false,
+          responsive: true,
+        }
+      );
+    }
     renderHeatmapPlot(errorPlot, {
       title: "Absolute Error",
-      ...targetGrid,
-      z: targetGrid.z.map((row) => row.map(() => 0)),
+      x: [],
+      y: [],
+      z: [],
       colorscale: "Magma",
     });
     renderLossChart([], 0);
@@ -226,6 +373,19 @@ function refreshStepState(data, index) {
   }
 
   const current = steps[index];
+  const currentTargetGrid = {
+    title: "Target",
+    x: current.heatmaps?.target?.x || targetGrid.x,
+    y: current.heatmaps?.target?.y || targetGrid.y,
+    z: current.heatmaps?.target?.z || targetGrid.z,
+  };
+  const currentPredictionGrid = {
+    title: "Prediction",
+    x: current.heatmaps?.prediction?.x || targetGrid.x,
+    y: current.heatmaps?.prediction?.y || targetGrid.y,
+    z: current.heatmaps?.prediction?.z || [],
+  };
+
   currentStepLabel.textContent = current.label || `Step ${index + 1}`;
   playbackMode.textContent = "Trajectory replay";
   if (current.batch_loss !== undefined) {
@@ -234,20 +394,7 @@ function refreshStepState(data, index) {
     timelineCaption.textContent = `Train MSE ${current.train_mse.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
   }
 
-  renderHeatmapPlot(targetPlot, {
-    title: "Target",
-    x: current.heatmaps?.target?.x || targetGrid.x,
-    y: current.heatmaps?.target?.y || targetGrid.y,
-    z: current.heatmaps?.target?.z || targetGrid.z,
-    colorscale: "Viridis",
-  });
-  renderHeatmapPlot(predictionPlot, {
-    title: "Prediction",
-    x: current.heatmaps?.prediction?.x || targetGrid.x,
-    y: current.heatmaps?.prediction?.y || targetGrid.y,
-    z: current.heatmaps?.prediction?.z,
-    colorscale: "Viridis",
-  });
+  renderOverlayPlot(overlayPlot, currentPredictionGrid, currentTargetGrid);
   renderHeatmapPlot(errorPlot, {
     title: "Absolute Error",
     x: current.heatmaps?.error?.x || targetGrid.x,
