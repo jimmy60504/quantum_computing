@@ -264,34 +264,6 @@ def serialize_dataset_points(dataset: TensorDataset) -> dict[str, list[float]]:
         "y": labels[:, 0].detach().cpu().tolist(),
     }
 
-
-def serialize_batch_points(features: torch.Tensor, labels: torch.Tensor) -> dict[str, list[float]]:
-    return {
-        "x1": features[:, 0].detach().cpu().tolist(),
-        "x2": features[:, 1].detach().cpu().tolist(),
-        "y": labels[:, 0].detach().cpu().tolist(),
-    }
-
-
-def make_loss_curve(loss_history: list[dict[str, float]], output_path: Path) -> Path:
-    epochs = [entry["epoch"] for entry in loss_history]
-    train_mse = [entry["train_mse"] for entry in loss_history]
-    test_mse = [entry["test_mse"] for entry in loss_history]
-
-    fig, ax = plt.subplots(figsize=(7, 4.2))
-    ax.plot(epochs, train_mse, marker="o", label="train MSE")
-    ax.plot(epochs, test_mse, marker="s", label="test MSE")
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("MSE")
-    ax.set_title("HW1 Problem 1 data reuploading baseline")
-    ax.grid(alpha=0.25)
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=180)
-    plt.close(fig)
-    return output_path
-
-
 def make_circuit_diagram(
     model: DataReuploadingRegressor, sample: torch.Tensor, output_path: Path
 ) -> Path:
@@ -300,41 +272,6 @@ def make_circuit_diagram(
         encoded.detach().cpu().numpy(),
         model.weights.detach().cpu().numpy(),
     )
-    fig.savefig(output_path, dpi=180, bbox_inches="tight")
-    plt.close(fig)
-    return output_path
-
-
-def make_prediction_heatmap(
-    heatmap_grids: dict[str, dict[str, list[list[float]] | list[float]]], output_path: Path
-) -> Path:
-    target_grid = np.asarray(heatmap_grids["target"]["z"], dtype=np.float32)
-    prediction_grid = np.asarray(heatmap_grids["prediction"]["z"], dtype=np.float32)
-    error_grid = np.asarray(heatmap_grids["error"]["z"], dtype=np.float32)
-
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), constrained_layout=True)
-    images = []
-    titles = ["Target on test domain", "Model prediction", "Absolute error"]
-    values = [target_grid, prediction_grid, error_grid]
-    cmaps = ["viridis", "viridis", "magma"]
-
-    for ax, title, value, cmap in zip(axes, titles, values, cmaps):
-        image = ax.imshow(
-            value,
-            extent=(0.5, 1.0, 0.5, 1.0),
-            origin="lower",
-            aspect="auto",
-            cmap=cmap,
-        )
-        ax.set_title(title)
-        ax.set_xlabel("x1")
-        ax.set_ylabel("x2")
-        images.append(image)
-
-    fig.colorbar(images[0], ax=axes[0], fraction=0.046, pad=0.04, label="target")
-    fig.colorbar(images[1], ax=axes[1], fraction=0.046, pad=0.04, label="prediction")
-    fig.colorbar(images[2], ax=axes[2], fraction=0.046, pad=0.04, label="abs error")
-    fig.suptitle("HW1 Problem 1 prediction heatmap on test domain", fontsize=14)
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(fig)
     return output_path
@@ -582,18 +519,10 @@ def train(config: Config, num_samples: int) -> None:
             }
         )
 
-        artifact_dir = Path("HW1") / "artifacts"
-        artifact_dir.mkdir(parents=True, exist_ok=True)
-        hf_runtime_dir = Path("hf_space_hw1") / "runtime"
-        hf_runtime_dir.mkdir(parents=True, exist_ok=True)
         viewer_export_path = resolve_viewer_export_path(config)
         runtime_circuit_path = resolve_runtime_circuit_path(viewer_export_path)
         viewer_manifest_path = Path("hf_space_hw1") / "runtime" / "viewer_manifest.json"
-        loss_curve_path = artifact_dir / "problem1_loss_curve.png"
-        circuit_path = artifact_dir / "problem1_circuit.png"
-        heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
 
-        make_circuit_diagram(model, train_dataset[0][0], circuit_path)
         make_circuit_diagram(model, train_dataset[0][0], runtime_circuit_path)
         write_viewer_export(
             config,
@@ -712,15 +641,7 @@ def train(config: Config, num_samples: int) -> None:
         mlflow.log_metric("best_test_mse", best_test_mse)
         mlflow.log_metric("final_train_mse", final_train_mse)
         mlflow.log_metric("final_test_mse", final_test_mse)
-        final_heatmap_grids = (
-            timeline_steps[-1]["heatmaps"]
-            if timeline_steps
-            else build_dual_domain_heatmaps(model, config.heatmap_grid_size)
-        )
-        make_loss_curve(loss_history, loss_curve_path)
-        make_circuit_diagram(model, train_dataset[0][0], circuit_path)
         make_circuit_diagram(model, train_dataset[0][0], runtime_circuit_path)
-        make_prediction_heatmap(final_heatmap_grids["test"], heatmap_path)
         write_viewer_export(
             config,
             viewer_export_path,
@@ -736,17 +657,13 @@ def train(config: Config, num_samples: int) -> None:
             best_test_mse,
             timeline_steps,
         )
-        mlflow.log_artifact(str(loss_curve_path), artifact_path="plots")
-        mlflow.log_artifact(str(circuit_path), artifact_path="plots")
-        mlflow.log_artifact(str(heatmap_path), artifact_path="plots")
+        mlflow.log_artifact(str(runtime_circuit_path), artifact_path="viewer")
         mlflow.log_artifact(str(viewer_export_path), artifact_path="viewer")
         mlflow.log_artifact(str(viewer_manifest_path), artifact_path="viewer")
 
         print(flush=True)
         print(f"best_test_mse={best_test_mse:.6f}", flush=True)
-        print(f"loss_curve={loss_curve_path}", flush=True)
-        print(f"circuit_png={circuit_path}", flush=True)
-        print(f"heatmap_png={heatmap_path}", flush=True)
+        print(f"runtime_circuit_png={runtime_circuit_path}", flush=True)
         print(f"viewer_export={viewer_export_path}", flush=True)
         print(f"viewer_manifest={viewer_manifest_path}", flush=True)
 

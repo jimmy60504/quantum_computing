@@ -435,8 +435,11 @@ function renderLossChart(steps, currentIndex) {
   chartEmpty.style.display = "none";
   const x = steps.map((step, index) => step.global_step || index + 1);
   const currentStep = steps[currentIndex];
-  const primarySeries = steps.map((step) => step.batch_loss ?? step.train_mse ?? 0);
-  const secondarySeries = steps.map((step) => step.test_mse ?? 0);
+  const LOG_EPSILON = 1e-6;
+  const primarySeries = steps.map((step) =>
+    Math.max(step.batch_loss ?? step.train_mse ?? LOG_EPSILON, LOG_EPSILON)
+  );
+  const secondarySeries = steps.map((step) => Math.max(step.test_mse ?? LOG_EPSILON, LOG_EPSILON));
   const tickCount = Math.min(8, x.length);
   const tickvals = Array.from({ length: tickCount }, (_, index) => {
     const stepIndex = Math.round((index / Math.max(tickCount - 1, 1)) * (x.length - 1));
@@ -478,6 +481,7 @@ function renderLossChart(steps, currentIndex) {
       },
       yaxis: {
         title: "MSE",
+        type: "log",
         gridcolor: "rgba(23,33,29,0.08)",
       },
       shapes: [

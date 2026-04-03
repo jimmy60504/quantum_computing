@@ -6,7 +6,10 @@ import argparse
 import json
 from pathlib import Path
 
-from .benchmark import DATASET_LOADERS, METHOD_SPECS, ensure_output_dirs, make_result_skeleton
+try:
+    from .benchmark import DATASET_LOADERS, METHOD_SPECS, ensure_output_dirs, make_result_skeleton
+except ImportError:
+    from benchmark import DATASET_LOADERS, METHOD_SPECS, ensure_output_dirs, make_result_skeleton
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,7 +51,10 @@ def main() -> None:
         print(f"  - {dataset_name}")
 
     if args.preview_datasets:
-        from .benchmark import summarize_dataset
+        try:
+            from .benchmark import summarize_dataset
+        except ImportError:
+            from benchmark import summarize_dataset
 
         summaries = {}
         for dataset_name, loader in DATASET_LOADERS.items():

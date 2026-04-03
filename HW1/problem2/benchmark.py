@@ -8,8 +8,12 @@ from time import perf_counter
 
 import numpy as np
 
-from .datasets import DatasetBundle, make_circle_dataset, make_moons_dataset
-from .interfaces import BenchmarkResult, MethodSpec
+try:
+    from .datasets import DatasetBundle, make_circle_dataset, make_moons_dataset
+    from .interfaces import BenchmarkResult, MethodSpec
+except ImportError:
+    from datasets import DatasetBundle, make_circle_dataset, make_moons_dataset
+    from interfaces import BenchmarkResult, MethodSpec
 
 
 DATASET_LOADERS = {
