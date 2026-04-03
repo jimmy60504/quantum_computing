@@ -34,7 +34,12 @@ const lossChart = document.getElementById("loss-chart");
 
 let currentManifest = null;
 let currentData = null;
+let currentRunId = null;
 const overlayCameraStates = {
+  train: null,
+  test: null,
+};
+const overlayPlotRunId = {
   train: null,
   test: null,
 };
@@ -44,6 +49,13 @@ let activeLoadToken = 0;
 const defaultOverlayCamera = {
   eye: { x: 1.5, y: 1.3, z: 0.95 },
 };
+
+function cloneCamera(camera) {
+  if (!camera) {
+    return null;
+  }
+  return JSON.parse(JSON.stringify(camera));
+}
 
 function openImageLightbox(sourceImage) {
   if (!imageLightbox || !imageLightboxImage || !sourceImage?.src) {
@@ -275,6 +287,7 @@ function makeSurfaceLayout(title, domainKey, xRange, yRange) {
     paper_bgcolor: "rgba(0,0,0,0)",
     scene: {
       bgcolor: "rgba(0,0,0,0)",
+      dragmode: "turntable",
       xaxis: {
         title: "x1",
         range: xRange,
@@ -293,19 +306,14 @@ function makeSurfaceLayout(title, domainKey, xRange, yRange) {
         gridcolor: "rgba(23,33,29,0.10)",
         zeroline: false,
       },
-      camera: overlayCameraStates[domainKey] || defaultOverlayCamera,
+      camera: cloneCamera(overlayCameraStates[domainKey] || defaultOverlayCamera),
       aspectratio: { x: 1.15, y: 1.15, z: 0.7 },
     },
-    uirevision: `overlay-camera-${domainKey}`,
   };
 }
 
 function bindOverlayCameraTracking(element, domainKey) {
-  if (
-    !element ||
-    element.dataset.cameraBound === "true" ||
-    typeof element.on !== "function"
-  ) {
+  if (!element || typeof element.on !== "function") {
     return;
   }
 
@@ -314,93 +322,93 @@ function bindOverlayCameraTracking(element, domainKey) {
       return;
     }
 
-    let nextCamera = null;
-    if (eventData?.["scene.camera"]) {
-      nextCamera = eventData["scene.camera"];
-    }
-    if (!nextCamera) {
-      const liveCamera = element.layout?.scene?.camera || element._fullLayout?.scene?.camera;
-      if (liveCamera) {
-        nextCamera = liveCamera;
+    const camera =
+      eventData?.["scene.camera"] ||
+      element.layout?.scene?.camera ||
+      element._fullLayout?.scene?.camera;
+    if (camera) {
+      const nextCamera = cloneCamera(camera);
+      overlayCameraStates.train = cloneCamera(nextCamera);
+      overlayCameraStates.test = cloneCamera(nextCamera);
+
+      const siblingElement = domainKey === "train" ? testOverlayPlot : trainOverlayPlot;
+      if (siblingElement) {
+        cameraSyncLocked = true;
+        Plotly.relayout(siblingElement, { "scene.camera": cloneCamera(nextCamera) })
+          .catch(() => {})
+          .finally(() => {
+            cameraSyncLocked = false;
+          });
       }
     }
-    if (!nextCamera) {
-      return;
-    }
-
-    overlayCameraStates.train = nextCamera;
-    overlayCameraStates.test = nextCamera;
-
-    const siblingElement = domainKey === "train" ? testOverlayPlot : trainOverlayPlot;
-    if (siblingElement) {
-      cameraSyncLocked = true;
-      Plotly.relayout(siblingElement, { "scene.camera": nextCamera })
-        .catch(() => {})
-        .finally(() => {
-          cameraSyncLocked = false;
-        });
-      return;
-    }
-
-    cameraSyncLocked = false;
   });
-
-  element.dataset.cameraBound = "true";
 }
 
-function renderOverlayPlot(element, domainKey, predictionGrid, domainPoints, title) {
+function renderOverlayPlot(element, domainKey, predictionGrid, domainPoints) {
   if (!element) {
     return;
   }
 
-  Plotly.react(
-    element,
-    [
-      {
-        type: "surface",
-        x: predictionGrid.x,
-        y: predictionGrid.y,
-        z: predictionGrid.z,
-        colorscale: "Viridis",
-        opacity: 0.62,
-        showscale: false,
-        contours: {
-          z: {
-            show: true,
-            usecolormap: false,
-            color: "rgba(255,255,255,0.35)",
-            width: 1,
+  const isNewRun = overlayPlotRunId[domainKey] !== currentRunId;
+
+  if (isNewRun) {
+    Plotly.purge(element);
+    Plotly.newPlot(
+      element,
+      [
+        {
+          type: "surface",
+          x: predictionGrid.x,
+          y: predictionGrid.y,
+          z: predictionGrid.z,
+          colorscale: "Viridis",
+          opacity: 0.62,
+          showscale: false,
+          contours: {
+            z: {
+              show: true,
+              usecolormap: false,
+              color: "rgba(255,255,255,0.35)",
+              width: 1,
+            },
           },
+          hovertemplate:
+            "Prediction surface<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
         },
-        hovertemplate:
-          "Prediction surface<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
-      },
-      {
-        type: "scatter3d",
-        mode: "markers",
-        x: domainPoints.x,
-        y: domainPoints.y,
-        z: domainPoints.z,
-        name: `${domainKey} targets`,
-        marker: {
-          size: 2.1,
-          color: domainKey === "train" ? "rgba(13,143,113,0.88)" : "rgba(239,131,84,0.92)",
-          opacity: 0.82,
-          line: { width: 0.35, color: "rgba(255,255,255,0.5)" },
+        {
+          type: "scatter3d",
+          mode: "markers",
+          x: domainPoints.x,
+          y: domainPoints.y,
+          z: domainPoints.z,
+          name: `${domainKey} targets`,
+          marker: {
+            size: 2.1,
+            color: domainKey === "train" ? "rgba(13,143,113,0.88)" : "rgba(239,131,84,0.92)",
+            opacity: 0.82,
+            line: { width: 0.35, color: "rgba(255,255,255,0.5)" },
+          },
+          hovertemplate:
+            `${domainKey} sample<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>`,
         },
-        hovertemplate:
-          `${domainKey} sample<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>`,
-      },
-    ],
-    makeSurfaceLayout(
-      null,
-      domainKey,
-      [Math.min(...predictionGrid.x), Math.max(...predictionGrid.x)],
-      [Math.min(...predictionGrid.y), Math.max(...predictionGrid.y)]
-    ),
-    { displayModeBar: false, responsive: true }
-  );
-  bindOverlayCameraTracking(element, domainKey);
+      ],
+      makeSurfaceLayout(
+        null,
+        domainKey,
+        [Math.min(...predictionGrid.x), Math.max(...predictionGrid.x)],
+        [Math.min(...predictionGrid.y), Math.max(...predictionGrid.y)]
+      ),
+      { displayModeBar: false, responsive: true }
+    );
+    bindOverlayCameraTracking(element, domainKey);
+    overlayPlotRunId[domainKey] = currentRunId;
+  } else {
+    Plotly.restyle(element, {
+      x: [predictionGrid.x, domainPoints.x],
+      y: [predictionGrid.y, domainPoints.y],
+      z: [predictionGrid.z, domainPoints.z],
+    }, [0, 1]);
+  }
 }
 
 function renderLossChart(steps, currentIndex) {
@@ -696,6 +704,9 @@ async function loadRunData(path, loadToken) {
 }
 
 async function applyRun(runId) {
+  currentRunId = runId;
+  overlayCameraStates.train = null;
+  overlayCameraStates.test = null;
   const loadToken = ++activeLoadToken;
   const selectedRun =
     currentManifest.runs.find((run) => run.id === runId) || currentManifest.runs[0];
