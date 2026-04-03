@@ -24,6 +24,9 @@ const loadingPanel = document.getElementById("loading-panel");
 const loadingLabel = document.getElementById("loading-label");
 const loadingPercent = document.getElementById("loading-percent");
 const loadingBar = document.getElementById("loading-bar");
+const analysisOpenButton = document.getElementById("analysis-open");
+const analysisModal = document.getElementById("analysis-modal");
+const analysisCloseButton = document.getElementById("analysis-close");
 const imageLightbox = document.getElementById("image-lightbox");
 const imageLightboxImage = document.getElementById("image-lightbox-image");
 const imageLightboxCaption = document.getElementById("image-lightbox-caption");
@@ -81,6 +84,22 @@ function closeImageLightbox() {
   imageLightboxImage.removeAttribute("src");
 }
 
+function openAnalysisModal() {
+  if (!analysisModal) {
+    return;
+  }
+  analysisModal.hidden = false;
+  analysisModal.setAttribute("aria-hidden", "false");
+}
+
+function closeAnalysisModal() {
+  if (!analysisModal) {
+    return;
+  }
+  analysisModal.hidden = true;
+  analysisModal.setAttribute("aria-hidden", "true");
+}
+
 function bindImageLightbox() {
   previewableImages.forEach((image) => {
     image.addEventListener("click", () => openImageLightbox(image));
@@ -99,6 +118,25 @@ function bindImageLightbox() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && imageLightbox && !imageLightbox.hidden) {
       closeImageLightbox();
+    }
+  });
+}
+
+function bindAnalysisModal() {
+  analysisOpenButton?.addEventListener("click", openAnalysisModal);
+  analysisCloseButton?.addEventListener("click", closeAnalysisModal);
+
+  analysisModal?.addEventListener("click", (event) => {
+    const closeRequested =
+      event.target === analysisModal || event.target?.dataset?.analysisClose === "true";
+    if (closeRequested) {
+      closeAnalysisModal();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && analysisModal && !analysisModal.hidden) {
+      closeAnalysisModal();
     }
   });
 }
@@ -805,6 +843,7 @@ async function applyRun(runId) {
 
 async function main() {
   bindImageLightbox();
+  bindAnalysisModal();
   setLoadingState({
     visible: true,
     label: "Booting viewer",

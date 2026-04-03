@@ -113,6 +113,37 @@ h2 {
   line-height: 1.25;
 }
 
+.hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-info-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(23, 33, 29, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--brand);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  flex: 0 0 auto;
+}
+
+.hero-info-button:hover {
+  background: rgba(13, 143, 113, 0.12);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(20, 30, 28, 0.1);
+}
+
 .hero-reference {
   margin-top: 8px;
   border-top: 1px solid rgba(23, 33, 29, 0.08);
@@ -563,6 +594,101 @@ input[type="range"] {
   font-size: 0.92rem;
 }
 
+.analysis-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 10000;
+}
+
+.analysis-modal[hidden] {
+  display: none !important;
+}
+
+.analysis-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(23, 33, 29, 0.56);
+  backdrop-filter: blur(6px);
+}
+
+.analysis-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(900px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 252, 245, 0.98);
+  box-shadow: 0 32px 84px rgba(20, 30, 28, 0.34);
+  overflow: hidden;
+}
+
+.analysis-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 33, 29, 0.08);
+  color: var(--text);
+  font-size: 1.55rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.analysis-modal-content {
+  overflow: auto;
+  max-height: calc(100vh - 48px);
+  padding: 28px 30px 28px;
+}
+
+.analysis-eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.analysis-lead {
+  margin: 12px 0 0;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.analysis-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(23, 33, 29, 0.08);
+}
+
+.analysis-section h3 {
+  margin: 0 0 8px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.02rem;
+}
+
+.analysis-section p {
+  margin: 0;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.analysis-modal-content code {
+  padding: 0.12rem 0.36rem;
+  border-radius: 8px;
+  background: rgba(23, 33, 29, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
 .heatmap-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -723,5 +849,19 @@ input[type="range"] {
   .control-rail,
   .content-pane {
     overflow: visible;
+  }
+
+  .analysis-modal {
+    padding: 14px;
+  }
+
+  .analysis-modal-dialog {
+    width: min(100%, calc(100vw - 28px));
+    max-height: calc(100vh - 28px);
+  }
+
+  .analysis-modal-content {
+    padding: 22px 18px 22px;
+    max-height: calc(100vh - 28px);
   }
 }
