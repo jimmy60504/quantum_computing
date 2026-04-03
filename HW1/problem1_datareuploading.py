@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,13 +25,13 @@ class Config:
     num_qubits: int = 2
     num_layers: int = 3
     batch_size: int = 64
-    epochs: int = 20
+    epochs: int = 5
     learning_rate: float = 0.03
     hidden_scale: float = 1.0
     heatmap_grid_size: int = 64
     device_name: str = "lightning.qubit"
     diff_method: str | None = None
-    viewer_export_path: str = "hf_space_hw1/runtime/viewer_data.json"
+    viewer_export_path: str | None = None
     viewer_export_every: int = 1
     tracking_uri: str | None = None
     experiment_name: str = "hw1-problem1-datareuploading"
@@ -129,6 +130,30 @@ def validate_device_config(device_name: str, diff_method: str) -> None:
             f"Unsupported device/diff combination: {device_name} + {diff_method}. "
             f"Try one of: {supported_text}."
         )
+
+
+def slugify(value: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
+    return normalized.strip("-") or "run"
+
+
+def make_default_export_stem(config: Config) -> str:
+    if config.run_name:
+        return slugify(config.run_name)
+
+    return slugify(
+        (
+            f"q{config.num_qubits}-l{config.num_layers}-"
+            f"{config.device_name}-{config.diff_method}-"
+            f"lr{config.learning_rate}-b{config.batch_size}-e{config.epochs}"
+        )
+    )
+
+
+def resolve_viewer_export_path(config: Config) -> Path:
+    if config.viewer_export_path:
+        return Path(config.viewer_export_path)
+    return Path("hf_space_hw1") / "runtime" / f"{make_default_export_stem(config)}.json"
 
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> float:
     model.eval()
@@ -274,9 +299,51 @@ def write_viewer_export(
             "grid_size": config.heatmap_grid_size
         },
         "timeline_steps": timeline_steps,
+        "run": {
+            "name": config.run_name or viewer_export_path.stem,
+            "path": f"./runtime/{viewer_export_path.name}",
+        },
     }
     viewer_export_path.write_text(json.dumps(payload, indent=2))
     return viewer_export_path
+
+
+def update_viewer_manifest(
+    manifest_path: Path,
+    export_path: Path,
+    config: Config,
+    best_test_mse: float,
+    timeline_steps: list[dict[str, object]],
+) -> Path:
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+    else:
+        manifest = {"title": "HW1 QML Viewer Runs", "default_run": None, "runs": []}
+
+    stem = export_path.stem
+    label = config.run_name or stem
+    entry = {
+        "id": stem,
+        "label": label,
+        "path": f"./runtime/{export_path.name}",
+        "steps": len(timeline_steps),
+        "device": config.device_name,
+        "diff_method": config.diff_method,
+        "num_qubits": config.num_qubits,
+        "num_layers": config.num_layers,
+        "learning_rate": config.learning_rate,
+        "batch_size": config.batch_size,
+        "epochs": config.epochs,
+        "best_test_mse": best_test_mse,
+    }
+
+    runs = [run for run in manifest.get("runs", []) if run.get("id") != stem]
+    runs.insert(0, entry)
+    manifest["runs"] = runs
+    manifest["default_run"] = stem
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+    return manifest_path
 
 
 def train(config: Config, num_samples: int) -> None:
@@ -400,7 +467,8 @@ def train(config: Config, num_samples: int) -> None:
         artifact_dir.mkdir(parents=True, exist_ok=True)
         hf_runtime_dir = Path("hf_space_hw1") / "runtime"
         hf_runtime_dir.mkdir(parents=True, exist_ok=True)
-        viewer_export_path = Path(config.viewer_export_path)
+        viewer_export_path = resolve_viewer_export_path(config)
+        viewer_manifest_path = Path("hf_space_hw1") / "runtime" / "viewer_manifest.json"
         loss_curve_path = artifact_dir / "problem1_loss_curve.png"
         circuit_path = artifact_dir / "problem1_circuit.png"
         heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
@@ -413,10 +481,18 @@ def train(config: Config, num_samples: int) -> None:
         make_circuit_diagram(model, train_dataset[0][0], hf_circuit_path)
         make_prediction_heatmap(final_heatmap_grids, heatmap_path)
         write_viewer_export(config, viewer_export_path, timeline_steps)
+        update_viewer_manifest(
+            viewer_manifest_path,
+            viewer_export_path,
+            config,
+            best_test_mse,
+            timeline_steps,
+        )
         mlflow.log_artifact(str(loss_curve_path), artifact_path="plots")
         mlflow.log_artifact(str(circuit_path), artifact_path="plots")
         mlflow.log_artifact(str(heatmap_path), artifact_path="plots")
         mlflow.log_artifact(str(viewer_export_path), artifact_path="viewer")
+        mlflow.log_artifact(str(viewer_manifest_path), artifact_path="viewer")
 
         print(flush=True)
         print(f"best_test_mse={best_test_mse:.6f}", flush=True)
@@ -424,6 +500,7 @@ def train(config: Config, num_samples: int) -> None:
         print(f"circuit_png={circuit_path}", flush=True)
         print(f"heatmap_png={heatmap_path}", flush=True)
         print(f"viewer_export={viewer_export_path}", flush=True)
+        print(f"viewer_manifest={viewer_manifest_path}", flush=True)
 
 
 def parse_args() -> tuple[Config, int]:
@@ -431,7 +508,7 @@ def parse_args() -> tuple[Config, int]:
     parser.add_argument("--num-qubits", type=int, default=2)
     parser.add_argument("--num-layers", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--learning-rate", type=float, default=0.03)
     parser.add_argument("--hidden-scale", type=float, default=1.0)
     parser.add_argument("--heatmap-grid-size", type=int, default=64)
@@ -448,7 +525,7 @@ def parse_args() -> tuple[Config, int]:
         choices=("backprop", "adjoint"),
     )
     parser.add_argument("--num-samples", type=int, default=NUM_SAMPLES)
-    parser.add_argument("--viewer-export-path", type=str, default="hf_space_hw1/runtime/viewer_data.json")
+    parser.add_argument("--viewer-export-path", type=str, default=None)
     parser.add_argument("--viewer-export-every", type=int, default=1)
     parser.add_argument("--tracking-uri", type=str, default=None)
     parser.add_argument("--experiment-name", type=str, default="hw1-problem1-datareuploading")

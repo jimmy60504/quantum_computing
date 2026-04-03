@@ -249,6 +249,8 @@ Recommended workflow:
 - Run training on `gx10`
 - Keep generated viewer data on `gx10` under `hf_space_hw1/runtime/`
 - The viewer export is batch-based: one slider step per exported batch
+- The viewer also keeps a runtime manifest so you can switch between multiple
+  hyperparameter runs from a dropdown
 - Only prepare a publish bundle when you are ready to upload to Hugging Face
 
 Preview it on `gx10`:

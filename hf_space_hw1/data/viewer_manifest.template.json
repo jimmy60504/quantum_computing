@@ -1,0 +1,20 @@
+{
+  "title": "HW1 QML Viewer Runs",
+  "default_run": "template",
+  "runs": [
+    {
+      "id": "template",
+      "label": "Template / No runtime export yet",
+      "path": "./data/viewer_data.template.json",
+      "steps": 0,
+      "device": "configurable",
+      "diff_method": "configurable",
+      "num_qubits": 2,
+      "num_layers": 3,
+      "learning_rate": 0.03,
+      "batch_size": 64,
+      "epochs": 5,
+      "best_test_mse": null
+    }
+  ]
+}

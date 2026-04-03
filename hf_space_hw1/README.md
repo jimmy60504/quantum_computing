@@ -15,10 +15,11 @@ Workflow:
 
 - Keep this folder in the repository as the static app scaffold.
 - Let `gx10` training write runtime files into `hf_space_hw1/runtime/`.
-- The viewer first looks for `runtime/viewer_data.json`.
-- If no runtime export exists, it falls back to `data/viewer_data.template.json`.
+- The viewer first looks for `runtime/viewer_manifest.json`.
+- If no runtime manifest exists, it falls back to `data/viewer_manifest.template.json`.
 - Runtime exports are batch-based by default, so the slider advances one
   optimizer step at a time.
+- The run selector lets you switch between different hyperparameter results.
 - When you are ready to publish, build a clean bundle from `gx10` and push that
   bundle to a Hugging Face Static Space.
 
