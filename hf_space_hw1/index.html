@@ -27,17 +27,6 @@
         <div class="panel-card">
           <div class="panel-header">
             <h2>Results</h2>
-          </div>
-          <label class="slider-label" for="run-select">Run</label>
-          <select id="run-select" class="run-select"></select>
-          <p id="run-note" class="muted">
-            Choose a runtime export to compare different hyperparameters.
-          </p>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <h2>Playback</h2>
             <span id="export-status" class="status-pill">loading</span>
           </div>
           <div id="loading-panel" class="loading-panel" hidden>
@@ -49,29 +38,34 @@
               <div id="loading-bar" class="loading-bar"></div>
             </div>
           </div>
-          <label class="slider-label" for="step-slider">Step</label>
-          <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
-          <div class="step-meta">
-            <div>
-              <span class="meta-label">Current</span>
-              <strong id="current-step-label">Final snapshot</strong>
-            </div>
-            <div>
-              <span class="meta-label">Mode</span>
-              <strong id="playback-mode">Static export</strong>
-            </div>
+          <label class="slider-label hidden-control" for="run-select">Run</label>
+          <select id="run-select" class="run-select hidden-control"></select>
+          <div class="results-table-wrap">
+            <table class="results-table">
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Q</th>
+                  <th>L</th>
+                  <th>Enc</th>
+                  <th>Params</th>
+                  <th>Train</th>
+                  <th>Test</th>
+                </tr>
+              </thead>
+              <tbody id="results-table-body"></tbody>
+            </table>
           </div>
-          <p id="playback-note" class="muted">
-            This export currently ships with one final view and is ready to accept
-            future trajectory snapshots.
+          <p id="run-note" class="muted">
+            Choose a runtime export to compare different hyperparameters.
           </p>
         </div>
 
-        <div class="panel-card">
+        <div class="panel-card experiment-card">
           <div class="panel-header">
             <h2>Experiment</h2>
           </div>
-          <dl id="experiment-meta" class="meta-list"></dl>
+          <dl id="experiment-meta" class="meta-list experiment-scroll"></dl>
         </div>
 
         <div class="panel-card">
@@ -95,13 +89,8 @@
         <section class="canvas-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Right Panel</p>
               <h2>Train And Test Snapshot</h2>
             </div>
-            <p class="muted">
-              The main area uses a 1:1:1 layout: train 3D on the left, test 3D
-              in the middle, and stacked train/test error maps on the right.
-            </p>
           </div>
           <div class="heatmap-grid">
             <article class="heatmap-card">
@@ -131,12 +120,17 @@
         <section class="canvas-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Timeline</p>
-              <h2>Loss By Step</h2>
+              <div class="timeline-title-row">
+                <h2>Loss By Step</h2>
+                <span id="current-step-label" class="timeline-title-pill">Final snapshot</span>
+                <span id="timeline-caption" class="timeline-title-metrics">
+                  Waiting for per-step trajectory export.
+                </span>
+              </div>
             </div>
-            <p id="timeline-caption" class="muted">
-              Waiting for per-step trajectory export.
-            </p>
+          </div>
+          <div class="timeline-controls">
+            <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
           </div>
           <div class="chart-wrap">
             <div id="loss-chart" class="plot-surface plot-surface-wide"></div>

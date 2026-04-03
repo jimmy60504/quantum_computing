@@ -8,10 +8,9 @@ const pageSubtitle = document.getElementById("page-subtitle");
 const exportStatus = document.getElementById("export-status");
 const runSelect = document.getElementById("run-select");
 const runNote = document.getElementById("run-note");
+const resultsTableBody = document.getElementById("results-table-body");
 const stepSlider = document.getElementById("step-slider");
 const currentStepLabel = document.getElementById("current-step-label");
-const playbackMode = document.getElementById("playback-mode");
-const playbackNote = document.getElementById("playback-note");
 const experimentMeta = document.getElementById("experiment-meta");
 const overviewImage = document.getElementById("overview-image");
 const circuitImage = document.getElementById("circuit-image");
@@ -49,6 +48,61 @@ function appendMetaRow(label, value) {
   dd.textContent = value;
   wrapper.append(dt, dd);
   experimentMeta.appendChild(wrapper);
+}
+
+function formatMetric(value) {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) {
+    return "—";
+  }
+  return Number(value).toFixed(4);
+}
+
+function formatInteger(value) {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) {
+    return "—";
+  }
+  return String(Math.round(Number(value)));
+}
+
+function renderResultsTable(runs, selectedRunId) {
+  if (!resultsTableBody) {
+    return;
+  }
+
+  resultsTableBody.innerHTML = "";
+  runs.forEach((run) => {
+    const row = document.createElement("tr");
+    row.dataset.runId = run.id;
+    if (run.id === selectedRunId) {
+      row.classList.add("is-selected");
+    }
+
+    const values = [
+      { text: run.label || run.id, className: "run-cell" },
+      { text: formatInteger(run.num_qubits) },
+      { text: formatInteger(run.num_layers) },
+      { text: run.encoding || "—" },
+      { text: formatInteger(run.trainable_parameters), className: "metric-cell" },
+      { text: formatMetric(run.final_train_mse), className: "metric-cell" },
+      { text: formatMetric(run.final_test_mse ?? run.best_test_mse), className: "metric-cell" },
+    ];
+
+    values.forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value.text;
+      if (value.className) {
+        cell.className = value.className;
+      }
+      row.appendChild(cell);
+    });
+
+    row.addEventListener("click", async () => {
+      runSelect.value = run.id;
+      await applyRun(run.id);
+    });
+
+    resultsTableBody.appendChild(row);
+  });
 }
 
 function setLoadingState({ visible, label, percent, status }) {
@@ -163,7 +217,7 @@ function getDomainPoints(data, domain, fallbackGrid) {
 
 function makeSurfaceLayout(title, domainKey, xRange, yRange) {
   return {
-    title: { text: title, x: 0.03, xanchor: "left" },
+    title: title ? { text: title, x: 0.03, xanchor: "left" } : undefined,
     margin: { l: 0, r: 0, t: 46, b: 0 },
     paper_bgcolor: "rgba(0,0,0,0)",
     scene: {
@@ -286,7 +340,7 @@ function renderOverlayPlot(element, domainKey, predictionGrid, domainPoints, tit
       },
     ],
     makeSurfaceLayout(
-      title,
+      null,
       domainKey,
       [Math.min(...predictionGrid.x), Math.max(...predictionGrid.x)],
       [Math.min(...predictionGrid.y), Math.max(...predictionGrid.y)]
@@ -398,7 +452,6 @@ function renderLossChart(steps, currentIndex) {
 
 function renderEmptyState() {
   currentStepLabel.textContent = "Final snapshot";
-  playbackMode.textContent = "Static export";
   timelineCaption.textContent = "Waiting for raw step grids.";
 
   for (const [element, domainKey, title] of [
@@ -449,7 +502,6 @@ function refreshStepState(data, index) {
   const testTargetGrid = testHeatmaps?.target;
 
   currentStepLabel.textContent = current.label || `Step ${index + 1}`;
-  playbackMode.textContent = "Trajectory replay";
   timelineCaption.textContent =
     `Train MSE ${current.train_mse.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
 
@@ -595,8 +647,8 @@ async function applyRun(runId) {
   pageTitle.textContent = currentData.title;
   pageSubtitle.textContent = currentData.subtitle;
   exportStatus.textContent = currentData.status;
-  playbackNote.textContent = currentData.description;
   runNote.textContent = `Loaded ${selectedRun.label} with ${selectedRun.steps} exported steps.`;
+  renderResultsTable(currentManifest.runs || [], selectedRun.id);
   overviewImage.src = currentData.assets.data_overview;
   circuitImage.src = currentData.assets.circuit;
   populateExperimentMeta(currentData, selectedRun);
@@ -647,6 +699,7 @@ async function main() {
 
   const defaultRunId = currentManifest.default_run || runs[0].id;
   runSelect.value = defaultRunId;
+  renderResultsTable(runs, defaultRunId);
   await applyRun(defaultRunId);
 
   runSelect.addEventListener("change", async (event) => {
