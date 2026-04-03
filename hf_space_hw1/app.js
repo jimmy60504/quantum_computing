@@ -78,13 +78,14 @@ function renderResultsTable(runs, selectedRunId) {
     }
 
     const values = [
+      {
+        text: formatMetric(run.final_test_mse ?? run.best_test_mse),
+        className: "metric-cell metric-cell-strong",
+      },
+      { text: formatMetric(run.final_train_mse), className: "metric-cell" },
       { text: run.label || run.id, className: "run-cell" },
       { text: formatInteger(run.num_qubits) },
       { text: formatInteger(run.num_layers) },
-      { text: run.encoding || "—" },
-      { text: formatInteger(run.trainable_parameters), className: "metric-cell" },
-      { text: formatMetric(run.final_train_mse), className: "metric-cell" },
-      { text: formatMetric(run.final_test_mse ?? run.best_test_mse), className: "metric-cell" },
     ];
 
     values.forEach((value) => {
@@ -546,9 +547,29 @@ function populateExperimentMeta(data, selectedRun) {
   appendMetaRow("Test domain", data.experiment.test_domain);
   appendMetaRow("Device", data.experiment.device);
   if (selectedRun?.num_qubits !== undefined) {
+    appendMetaRow("Qubits", selectedRun.num_qubits);
+    appendMetaRow("Layers", selectedRun.num_layers);
+  }
+  if (selectedRun?.encoding !== undefined) {
+    appendMetaRow("Encoding", selectedRun.encoding || "—");
+  }
+  if (selectedRun?.trainable_parameters !== undefined) {
+    appendMetaRow("Parameters", formatInteger(selectedRun.trainable_parameters));
+  }
+  if (selectedRun?.learning_rate !== undefined) {
+    appendMetaRow("Learning rate", selectedRun.learning_rate);
+  }
+  if (selectedRun?.batch_size !== undefined) {
+    appendMetaRow("Batch size", selectedRun.batch_size);
+  }
+  if (selectedRun?.epochs !== undefined) {
+    appendMetaRow("Epochs", selectedRun.epochs);
+  }
+  if (selectedRun?.final_train_mse !== undefined || selectedRun?.final_test_mse !== undefined) {
+    appendMetaRow("Train MSE", formatMetric(selectedRun.final_train_mse));
     appendMetaRow(
-      "Hyperparams",
-      `q=${selectedRun.num_qubits}, layers=${selectedRun.num_layers}, lr=${selectedRun.learning_rate}, batch=${selectedRun.batch_size}, epochs=${selectedRun.epochs}`
+      "Test MSE",
+      formatMetric(selectedRun.final_test_mse ?? selectedRun.best_test_mse)
     );
   }
   appendMetaRow("Note", data.experiment.note);

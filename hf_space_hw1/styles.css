@@ -207,7 +207,7 @@ input[type="range"] {
 
 .results-table {
   width: 100%;
-  min-width: 560px;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
 }
@@ -248,8 +248,13 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
+.results-table td.metric-cell-strong {
+  font-weight: 700;
+  color: var(--brand);
+}
+
 .results-table td.run-cell {
-  max-width: 132px;
+  max-width: 88px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
