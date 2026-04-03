@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -20,15 +21,28 @@
           <p class="eyebrow">D11224001 Huang, Chun-Ming</p>
           <div class="hero-title-row">
             <h1 id="page-title">HW1 QML Viewer</h1>
-            <button
-              id="analysis-open"
-              class="hero-info-button"
-              type="button"
-              aria-label="Open analysis notes"
-              title="Open analysis notes"
-            >
-              i
-            </button>
+            <div class="hero-info-wrap">
+              <button
+                id="analysis-open"
+                class="hero-info-button"
+                type="button"
+                aria-label="Open analysis notes"
+                title="Open analysis notes"
+              >
+                i
+              </button>
+              <div id="analysis-hint" class="analysis-hint" hidden>
+                <span class="analysis-hint-text">Tap here for notes</span>
+                <button
+                  id="analysis-hint-close"
+                  class="analysis-hint-close"
+                  type="button"
+                  aria-label="Dismiss analysis hint"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
           </div>
           <p id="page-subtitle" class="muted">
             Loading experiment summary...
@@ -205,92 +219,9 @@
           ×
         </button>
         <div class="analysis-modal-content">
-          <p class="analysis-eyebrow">Problem 1 Notes</p>
-          <h2>Data Reuploading Regression Analysis</h2>
-          <p class="analysis-lead">
-            This problem is less about memorizing a target formula and more about
-            understanding what a small data reuploading circuit can infer from a
-            difficult extrapolation split. The viewer is meant to show that story
-            from geometry, error maps, and frequency content at the same time.
-          </p>
-
-          <section class="analysis-section">
-            <h3>What The Circuit Is Actually Doing</h3>
-            <p>
-              Each input pair <code>(x1, x2)</code> is first passed through a small
-              classical linear layer, then squashed by <code>tanh</code>, and finally
-              turned into rotation angles for the qubits. In every layer, those same
-              encoded angles are re-injected through <code>RY</code> and
-              <code>RZ</code> rotations, followed by entangling <code>CNOT</code>
-              gates and trainable <code>Rot</code> gates. The model therefore learns a
-              hybrid representation: classical layers adapt the interface, while the
-              quantum circuit provides a structured nonlinear feature map.
-            </p>
-          </section>
-
-          <section class="analysis-section">
-            <h3>Why The Train/Test Split Is So Hard</h3>
-            <p>
-              The train domain lives in the lower-left region, where the target
-              surface only exposes a relatively small high-value arc of
-              <code>sin(exp(x1) + x2)</code>. The test domain sits in the upper-right
-              region, where the surface bends downward much more strongly. As a
-              result, the model can fit train data very well while still struggling
-              on test data, because this task is dominated by extrapolation rather
-              than interpolation.
-            </p>
-          </section>
-
-          <section class="analysis-section">
-            <h3>How To Read The Viewer</h3>
-            <p>
-              The train 3D panel shows whether the learned surface can match the
-              observed samples in the easy region. The test 3D panel shows how that
-              same surface extends into unseen territory. The two error maps make the
-              generalization gap much easier to locate spatially, while the log-scale
-              loss plot below reveals whether later updates still improve the fit or
-              only make tiny train-side refinements.
-            </p>
-          </section>
-
-          <section class="analysis-section">
-            <h3>What We Observed About Capacity</h3>
-            <p>
-              Increasing qubits or layers does increase expressive power, but the
-              results are not monotonic. Some larger configurations drive train MSE
-              extremely low yet still fail to reconstruct the test-domain shape in a
-              convincing way. In other words, additional capacity helps, but it does
-              not automatically solve the missing-information problem caused by the
-              split itself. In our runs, a smaller model can sometimes generalize as
-              well as, or better than, a deeper one.
-            </p>
-          </section>
-
-          <section class="analysis-section">
-            <h3>What The Model Does Not Know</h3>
-            <p>
-              The circuit never receives the symbolic rule
-              <code>sin(exp(x1) + x2)</code>. It only sees local supervision from the
-              train domain and tries to continue that geometry. This is why the test
-              surface can look like the model is "trying hard" but still not truly
-              understanding the underlying sinusoidal structure: it is learning from
-              local shape, not from explicit knowledge of the generating function.
-            </p>
-          </section>
-
-          <section class="analysis-section">
-            <h3>Why The Fourier Spectrum Matters</h3>
-            <p>
-              The Fourier view explains the same behavior in frequency space. When the
-              trained model mainly captures lower-frequency components, the resulting
-              surface looks smooth and plausible but misses sharper oscillatory
-              structure. This matches the reference analysis for data reuploading
-              circuits: circuit depth affects which Fourier modes can be represented,
-              so comparing the target and learned spectra helps explain why some
-              models still plateau on test error even after train loss becomes very
-              small.
-            </p>
-          </section>
+          <div id="analysis-markdown" class="analysis-markdown">
+            Loading analysis notes...
+          </div>
         </div>
       </div>
     </div>

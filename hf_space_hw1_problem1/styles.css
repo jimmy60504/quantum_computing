@@ -119,6 +119,13 @@ h2 {
   gap: 10px;
 }
 
+.hero-info-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .hero-info-button {
   display: inline-flex;
   align-items: center;
@@ -136,12 +143,97 @@ h2 {
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
   flex: 0 0 auto;
+  animation: infoPulse 2.4s ease-in-out infinite;
 }
 
 .hero-info-button:hover {
   background: rgba(13, 143, 113, 0.12);
   transform: translateY(-1px);
   box-shadow: 0 10px 22px rgba(20, 30, 28, 0.1);
+}
+
+.hero-info-button:focus-visible {
+  outline: 2px solid rgba(13, 143, 113, 0.35);
+  outline-offset: 2px;
+}
+
+.analysis-hint {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(23, 33, 29, 0.1);
+  background: rgba(255, 252, 245, 0.98);
+  color: var(--text);
+  box-shadow: 0 18px 36px rgba(20, 30, 28, 0.12);
+  white-space: nowrap;
+  z-index: 4;
+  animation: hintFloat 2.8s ease-in-out infinite;
+}
+
+.analysis-hint::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 14px;
+  width: 12px;
+  height: 12px;
+  background: rgba(255, 252, 245, 0.98);
+  border-top: 1px solid rgba(23, 33, 29, 0.1);
+  border-left: 1px solid rgba(23, 33, 29, 0.1);
+  transform: rotate(45deg);
+}
+
+.analysis-hint-text {
+  position: relative;
+  z-index: 1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.analysis-hint-close {
+  position: relative;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 33, 29, 0.08);
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@keyframes infoPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(13, 143, 113, 0.0);
+    transform: translateY(0);
+  }
+  45% {
+    box-shadow: 0 0 0 8px rgba(13, 143, 113, 0.0), 0 0 0 0 rgba(13, 143, 113, 0.16);
+    transform: translateY(-1px);
+  }
+  60% {
+    box-shadow: 0 0 0 10px rgba(13, 143, 113, 0.0), 0 0 0 0 rgba(13, 143, 113, 0.0);
+  }
+}
+
+@keyframes hintFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
 }
 
 .hero-reference {
@@ -647,41 +739,51 @@ input[type="range"] {
   padding: 28px 30px 28px;
 }
 
-.analysis-eyebrow {
-  margin: 0 0 6px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--brand);
+.analysis-markdown {
+  color: var(--text);
+  line-height: 1.75;
 }
 
-.analysis-lead {
-  margin: 12px 0 0;
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--muted);
+.analysis-markdown h1,
+.analysis-markdown h2,
+.analysis-markdown h3 {
+  font-family: "Space Grotesk", sans-serif;
+  line-height: 1.15;
 }
 
-.analysis-section {
-  margin-top: 22px;
+.analysis-markdown h1 {
+  margin: 0 0 12px;
+  font-size: 1.62rem;
+}
+
+.analysis-markdown h2 {
+  margin: 28px 0 10px;
+  font-size: 1.1rem;
   padding-top: 18px;
   border-top: 1px solid rgba(23, 33, 29, 0.08);
 }
 
-.analysis-section h3 {
-  margin: 0 0 8px;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 1.02rem;
+.analysis-markdown h2:first-child,
+.analysis-markdown h1 + h2 {
+  border-top: 0;
+  padding-top: 0;
 }
 
-.analysis-section p {
-  margin: 0;
-  line-height: 1.75;
-  color: var(--text);
+.analysis-markdown p {
+  margin: 0 0 14px;
 }
 
-.analysis-modal-content code {
+.analysis-markdown ul,
+.analysis-markdown ol {
+  margin: 0 0 14px 1.2rem;
+  padding: 0;
+}
+
+.analysis-markdown li + li {
+  margin-top: 6px;
+}
+
+.analysis-markdown code {
   padding: 0.12rem 0.36rem;
   border-radius: 8px;
   background: rgba(23, 33, 29, 0.06);
@@ -863,5 +965,15 @@ input[type="range"] {
   .analysis-modal-content {
     padding: 22px 18px 22px;
     max-height: calc(100vh - 28px);
+  }
+
+  .analysis-hint {
+    right: auto;
+    left: -12px;
+  }
+
+  .analysis-hint::before {
+    right: auto;
+    left: 18px;
   }
 }

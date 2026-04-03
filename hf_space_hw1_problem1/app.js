@@ -27,6 +27,9 @@ const loadingBar = document.getElementById("loading-bar");
 const analysisOpenButton = document.getElementById("analysis-open");
 const analysisModal = document.getElementById("analysis-modal");
 const analysisCloseButton = document.getElementById("analysis-close");
+const analysisHint = document.getElementById("analysis-hint");
+const analysisHintClose = document.getElementById("analysis-hint-close");
+const analysisMarkdown = document.getElementById("analysis-markdown");
 const imageLightbox = document.getElementById("image-lightbox");
 const imageLightboxImage = document.getElementById("image-lightbox-image");
 const imageLightboxCaption = document.getElementById("image-lightbox-caption");
@@ -47,6 +50,7 @@ const overlayCameraStates = {
 };
 let cameraSyncLocked = false;
 let activeLoadToken = 0;
+let analysisMarkdownLoaded = false;
 
 const defaultOverlayCamera = {
   eye: { x: 1.5, y: 1.3, z: 0.95 },
@@ -88,8 +92,10 @@ function openAnalysisModal() {
   if (!analysisModal) {
     return;
   }
+  dismissAnalysisHint();
   analysisModal.hidden = false;
   analysisModal.setAttribute("aria-hidden", "false");
+  void ensureAnalysisMarkdown();
 }
 
 function closeAnalysisModal() {
@@ -125,6 +131,7 @@ function bindImageLightbox() {
 function bindAnalysisModal() {
   analysisOpenButton?.addEventListener("click", openAnalysisModal);
   analysisCloseButton?.addEventListener("click", closeAnalysisModal);
+  analysisHintClose?.addEventListener("click", dismissAnalysisHint);
 
   analysisModal?.addEventListener("click", (event) => {
     const closeRequested =
@@ -139,6 +146,41 @@ function bindAnalysisModal() {
       closeAnalysisModal();
     }
   });
+}
+
+function dismissAnalysisHint() {
+  if (analysisHint) {
+    analysisHint.hidden = true;
+  }
+}
+
+function maybeShowAnalysisHint() {
+  if (!analysisHint) {
+    return;
+  }
+  analysisHint.hidden = false;
+}
+
+async function ensureAnalysisMarkdown() {
+  if (!analysisMarkdown || analysisMarkdownLoaded) {
+    return;
+  }
+
+  try {
+    const response = await fetch("./ANALYSIS.md");
+    if (!response.ok) {
+      throw new Error("Failed to load analysis markdown.");
+    }
+    const markdown = await response.text();
+    const rendered =
+      globalThis.marked?.parse?.(markdown) ??
+      `<pre>${markdown.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[char]))}</pre>`;
+    analysisMarkdown.innerHTML = rendered;
+    analysisMarkdownLoaded = true;
+  } catch (error) {
+    console.error(error);
+    analysisMarkdown.textContent = "Failed to load analysis notes.";
+  }
 }
 
 function appendMetaRow(label, value) {
@@ -844,6 +886,7 @@ async function applyRun(runId) {
 async function main() {
   bindImageLightbox();
   bindAnalysisModal();
+  maybeShowAnalysisHint();
   setLoadingState({
     visible: true,
     label: "Booting viewer",
