@@ -4,9 +4,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SOURCE_DIR="${REPO_ROOT}/hf_space_hw1"
+SOURCE_DIR="${REPO_ROOT}/hf_space_hw1_problem1"
 RUNTIME_DIR="${SOURCE_DIR}/runtime"
-OUTPUT_DIR="${HF_SPACE_OUTPUT_DIR:-${REPO_ROOT}/.out/hf_space_hw1_publish}"
+OUTPUT_DIR="${HF_SPACE_OUTPUT_DIR:-${REPO_ROOT}/.out/hf_space_hw1_problem1_publish}"
 
 rm -rf "${OUTPUT_DIR}"
 mkdir -p "${OUTPUT_DIR}"

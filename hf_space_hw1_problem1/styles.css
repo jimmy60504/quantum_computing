@@ -43,6 +43,15 @@ body {
   flex-direction: column;
   gap: 20px;
   min-height: 0;
+}
+
+.control-rail {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.content-pane {
   overflow: hidden;
 }
 

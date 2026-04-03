@@ -9,7 +9,7 @@
     "train_domain": "[0.0, 0.5] x [0.0, 0.5]",
     "test_domain": "[0.5, 1.0] x [0.5, 1.0]",
     "device": "configurable: default.qubit or lightning.qubit",
-    "note": "Run training on gx10 to populate hf_space_hw1/runtime/viewer_data.json."
+    "note": "Run training on gx10 to populate hf_space_hw1_problem1/runtime/viewer_data.json."
   },
   "assets": {
     "circuit": "assets/problem1_circuit.png",

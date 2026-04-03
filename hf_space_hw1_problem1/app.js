@@ -14,6 +14,7 @@ const currentStepLabel = document.getElementById("current-step-label");
 const experimentMeta = document.getElementById("experiment-meta");
 const overviewImage = document.getElementById("overview-image");
 const circuitImage = document.getElementById("circuit-image");
+const fourierImage = document.getElementById("fourier-image");
 const previewableImages = Array.from(document.querySelectorAll(".previewable-image"));
 const timelineCaption = document.getElementById("timeline-caption");
 const trainMsePill = document.getElementById("train-mse-pill");
@@ -116,7 +117,12 @@ function formatMetric(value) {
   if (value === undefined || value === null || Number.isNaN(Number(value))) {
     return "—";
   }
-  return Number(value).toFixed(4);
+  const numeric = Number(value);
+  const absValue = Math.abs(numeric);
+  if (absValue > 0 && absValue < 1e-3) {
+    return numeric.toExponential(2);
+  }
+  return numeric.toFixed(4);
 }
 
 function formatInteger(value) {
@@ -143,6 +149,10 @@ function renderResultsTable(runs, selectedRunId) {
       {
         text: formatMetric(run.final_test_mse ?? run.best_test_mse),
         className: "metric-cell metric-cell-strong",
+      },
+      {
+        text: formatMetric(run.final_train_mse),
+        className: "metric-cell",
       },
       { text: run.label || run.id, className: "run-cell" },
       { text: formatInteger(run.num_qubits) },
@@ -742,6 +752,17 @@ async function applyRun(runId) {
     return;
   }
 
+  const steps = currentData.timeline_steps || [];
+  const finalStep = steps.length ? steps[steps.length - 1] : null;
+  if (finalStep) {
+    if (selectedRun.final_train_mse === undefined || selectedRun.final_train_mse === null) {
+      selectedRun.final_train_mse = finalStep.train_mse;
+    }
+    if (selectedRun.final_test_mse === undefined || selectedRun.final_test_mse === null) {
+      selectedRun.final_test_mse = finalStep.test_mse;
+    }
+  }
+
   setLoadingState({
     visible: true,
     label: `Rendering ${selectedRun.label}`,
@@ -756,9 +777,11 @@ async function applyRun(runId) {
   renderResultsTable(currentManifest.runs || [], selectedRun.id);
   overviewImage.src = currentData.assets.data_overview;
   circuitImage.src = currentData.assets.circuit;
+  if (fourierImage) {
+    fourierImage.src = `./runtime/${selectedRun.id}_fourier_spectrum.png`;
+  }
   populateExperimentMeta(currentData, selectedRun);
 
-  const steps = currentData.timeline_steps || [];
   if (steps.length > 1) {
     stepSlider.disabled = false;
     stepSlider.min = "0";

@@ -19,5 +19,5 @@ if [[ -n "${existing_pids}" ]]; then
   fi
 fi
 
-cd "${REPO_ROOT}/hf_space_hw1"
+cd "${REPO_ROOT}/hf_space_hw1_problem1"
 exec python3 -m http.server "${HF_VIEWER_PORT}"

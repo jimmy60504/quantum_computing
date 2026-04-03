@@ -159,7 +159,7 @@ def make_default_export_stem(config: Config) -> str:
 def resolve_viewer_export_path(config: Config) -> Path:
     if config.viewer_export_path:
         return Path(config.viewer_export_path)
-    return Path("hf_space_hw1") / "runtime" / f"{make_default_export_stem(config)}.json"
+    return Path("hf_space_hw1_problem1") / "runtime" / f"{make_default_export_stem(config)}.json"
 
 
 def resolve_runtime_circuit_path(viewer_export_path: Path) -> Path:
@@ -328,6 +328,8 @@ def update_viewer_manifest(
     export_path: Path,
     config: Config,
     best_test_mse: float | None,
+    final_train_mse: float | None,
+    final_test_mse: float | None,
     timeline_steps: list[dict[str, object]],
 ) -> Path:
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -351,6 +353,8 @@ def update_viewer_manifest(
         "batch_size": config.batch_size,
         "epochs": config.epochs,
         "best_test_mse": best_test_mse,
+        "final_train_mse": final_train_mse,
+        "final_test_mse": final_test_mse,
     }
 
     runs = [run for run in manifest.get("runs", []) if run.get("id") != stem]
@@ -521,7 +525,7 @@ def train(config: Config, num_samples: int) -> None:
 
         viewer_export_path = resolve_viewer_export_path(config)
         runtime_circuit_path = resolve_runtime_circuit_path(viewer_export_path)
-        viewer_manifest_path = Path("hf_space_hw1") / "runtime" / "viewer_manifest.json"
+        viewer_manifest_path = Path("hf_space_hw1_problem1") / "runtime" / "viewer_manifest.json"
 
         make_circuit_diagram(model, train_dataset[0][0], runtime_circuit_path)
         write_viewer_export(
@@ -536,6 +540,8 @@ def train(config: Config, num_samples: int) -> None:
             viewer_manifest_path,
             viewer_export_path,
             config,
+            None,
+            None,
             None,
             timeline_steps,
         )
@@ -625,6 +631,8 @@ def train(config: Config, num_samples: int) -> None:
                 viewer_export_path,
                 config,
                 min(entry["test_mse"] for entry in loss_history),
+                train_mse,
+                test_mse,
                 timeline_steps,
             )
 
@@ -655,6 +663,8 @@ def train(config: Config, num_samples: int) -> None:
             viewer_export_path,
             config,
             best_test_mse,
+            final_train_mse,
+            final_test_mse,
             timeline_steps,
         )
         mlflow.log_artifact(str(runtime_circuit_path), artifact_path="viewer")

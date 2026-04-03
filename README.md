@@ -263,13 +263,13 @@ cd ~/quantum_computing
 ## Hugging Face static viewer
 
 The repository includes a static Hugging Face Space export scaffold in
-[hf_space_hw1](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/hf_space_hw1).
+[hf_space_hw1_problem1](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/hf_space_hw1_problem1).
 
 Recommended workflow:
 
 - Sync code from your Mac to `gx10`
 - Run training on `gx10`
-- Keep generated viewer data on `gx10` under `hf_space_hw1/runtime/`
+- Keep generated viewer data on `gx10` under `hf_space_hw1_problem1/runtime/`
 - The viewer export is batch-based: one slider step per exported batch
 - The viewer also keeps a runtime manifest so you can switch between multiple
   hyperparameter runs from a dropdown
@@ -292,7 +292,7 @@ cd ~/quantum_computing
 Preview it locally if needed:
 
 ```bash
-cd hf_space_hw1
+cd hf_space_hw1_problem1
 python3 -m http.server 8000
 ```
 
