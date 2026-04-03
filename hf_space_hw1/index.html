@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HW1 QML Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="control-rail">
+        <div class="hero-card">
+          <p class="eyebrow">HF Static Demo</p>
+          <h1 id="page-title">HW1 QML Viewer</h1>
+          <p id="page-subtitle" class="muted">
+            Loading experiment summary...
+          </p>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2>Playback</h2>
+            <span id="export-status" class="status-pill">loading</span>
+          </div>
+          <label class="slider-label" for="step-slider">Step</label>
+          <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
+          <div class="step-meta">
+            <div>
+              <span class="meta-label">Current</span>
+              <strong id="current-step-label">Final snapshot</strong>
+            </div>
+            <div>
+              <span class="meta-label">Mode</span>
+              <strong id="playback-mode">Static export</strong>
+            </div>
+          </div>
+          <p id="playback-note" class="muted">
+            This export currently ships with one final view and is ready to accept
+            future trajectory snapshots.
+          </p>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2>Experiment</h2>
+          </div>
+          <dl id="experiment-meta" class="meta-list"></dl>
+        </div>
+
+        <div class="panel-card">
+          <div class="panel-header">
+            <h2>Reference</h2>
+          </div>
+          <div class="reference-stack">
+            <figure class="reference-figure">
+              <img id="overview-image" alt="Data overview" />
+              <figcaption>Train/test split overview</figcaption>
+            </figure>
+            <figure class="reference-figure">
+              <img id="circuit-image" alt="Circuit diagram" />
+              <figcaption>Current circuit diagram</figcaption>
+            </figure>
+          </div>
+        </div>
+      </aside>
+
+      <main class="content-pane">
+        <section class="canvas-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Right Panel</p>
+              <h2>Heatmap Snapshot</h2>
+            </div>
+            <p class="muted">
+              Plotly handles the drawing. This export is already wired for
+              numeric grid playback, with raster fallback while the training
+              script still only saves PNG artifacts.
+            </p>
+          </div>
+          <div class="heatmap-grid">
+            <article class="heatmap-card">
+              <div class="heatmap-header">Target</div>
+              <div id="target-plot" class="plot-surface"></div>
+            </article>
+            <article class="heatmap-card">
+              <div class="heatmap-header">Prediction</div>
+              <div id="prediction-plot" class="plot-surface"></div>
+            </article>
+            <article class="heatmap-card">
+              <div class="heatmap-header">Absolute Error</div>
+              <div id="error-plot" class="plot-surface"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="canvas-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Timeline</p>
+              <h2>Loss By Step</h2>
+            </div>
+            <p id="timeline-caption" class="muted">
+              Waiting for per-step trajectory export.
+            </p>
+          </div>
+          <div class="chart-wrap">
+            <div id="loss-chart" class="plot-surface plot-surface-wide"></div>
+            <div id="chart-empty" class="chart-empty">
+              No step timeline has been exported yet. The viewer layout is ready
+              to replay training snapshots once `timeline_steps` are added.
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

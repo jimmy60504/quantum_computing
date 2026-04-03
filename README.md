@@ -238,6 +238,18 @@ cd ~/quantum_computing
 ./scripts/gx10_mlflow_ui.sh
 ```
 
+## Hugging Face static viewer
+
+The repository includes a static Hugging Face Space export scaffold in
+[hf_space_hw1](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/hf_space_hw1).
+
+Preview it locally:
+
+```bash
+cd hf_space_hw1
+python3 -m http.server 8000
+```
+
 If you want a different port:
 
 ```bash
