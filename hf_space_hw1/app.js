@@ -16,6 +16,8 @@ const overviewImage = document.getElementById("overview-image");
 const circuitImage = document.getElementById("circuit-image");
 const previewableImages = Array.from(document.querySelectorAll(".previewable-image"));
 const timelineCaption = document.getElementById("timeline-caption");
+const trainMsePill = document.getElementById("train-mse-pill");
+const testMsePill = document.getElementById("test-mse-pill");
 const chartEmpty = document.getElementById("chart-empty");
 const loadingPanel = document.getElementById("loading-panel");
 const loadingLabel = document.getElementById("loading-label");
@@ -515,6 +517,15 @@ function renderLossChart(steps, currentIndex) {
 function renderEmptyState() {
   currentStepLabel.textContent = "Final snapshot";
   timelineCaption.textContent = "Waiting for raw step grids.";
+  if (timelineCaption) {
+    timelineCaption.hidden = false;
+  }
+  if (trainMsePill) {
+    trainMsePill.hidden = true;
+  }
+  if (testMsePill) {
+    testMsePill.hidden = true;
+  }
 
   for (const [element, domainKey, title] of [
     [trainOverlayPlot, "train", "Train surface vs train samples"],
@@ -564,8 +575,17 @@ function refreshStepState(data, index) {
   const testTargetGrid = testHeatmaps?.target;
 
   currentStepLabel.textContent = current.label || `Step ${index + 1}`;
-  timelineCaption.textContent =
-    `Train MSE ${current.train_mse.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
+  if (timelineCaption) {
+    timelineCaption.hidden = true;
+  }
+  if (trainMsePill) {
+    trainMsePill.textContent = `Train MSE ${current.train_mse.toFixed(6)}`;
+    trainMsePill.hidden = false;
+  }
+  if (testMsePill) {
+    testMsePill.textContent = `Test MSE ${current.test_mse.toFixed(6)}`;
+    testMsePill.hidden = false;
+  }
 
   renderOverlayPlot(
     trainOverlayPlot,

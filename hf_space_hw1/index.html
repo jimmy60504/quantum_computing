@@ -131,9 +131,17 @@
                 <div class="timeline-slider-inline">
                   <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
                 </div>
-                <span id="timeline-caption" class="timeline-title-metrics">
-                  Waiting for per-step trajectory export.
-                </span>
+                <div id="timeline-metrics" class="timeline-metrics-row">
+                  <span id="timeline-caption" class="timeline-title-metrics timeline-title-metrics-status">
+                    Waiting for per-step trajectory export.
+                  </span>
+                  <span id="train-mse-pill" class="timeline-title-pill timeline-metric-pill" hidden>
+                    Train MSE —
+                  </span>
+                  <span id="test-mse-pill" class="timeline-title-pill timeline-metric-pill timeline-metric-pill-test" hidden>
+                    Test MSE —
+                  </span>
+                </div>
               </div>
             </div>
           </div>
