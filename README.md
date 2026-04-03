@@ -218,6 +218,28 @@ You can switch PennyLane simulator and differentiation mode from the CLI:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py \
+
+## Scaffold HW1 Problem 2
+
+The repository now includes a first-pass scaffold under
+[`HW1/problem2`](./HW1/problem2) for the three-method classification benchmark:
+
+- explicit quantum model
+- implicit quantum kernel method
+- data reuploading circuit
+
+It includes:
+
+- dataset helpers for `circle` and `moons`
+- shared benchmark/result interfaces
+- a CLI that writes a dataset preview and a benchmark plan JSON
+
+Run the scaffold preview locally:
+
+```bash
+conda activate quantum-computing
+python -m HW1.problem2.scaffold --preview-datasets --write-plan
+```
   --device default.qubit \
   --diff-method backprop
 ```

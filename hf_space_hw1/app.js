@@ -146,7 +146,6 @@ function renderResultsTable(runs, selectedRunId) {
         text: formatMetric(run.final_test_mse ?? run.best_test_mse),
         className: "metric-cell metric-cell-strong",
       },
-      { text: formatMetric(run.final_train_mse), className: "metric-cell" },
       { text: run.label || run.id, className: "run-cell" },
       { text: formatInteger(run.num_qubits) },
       { text: formatInteger(run.num_layers) },

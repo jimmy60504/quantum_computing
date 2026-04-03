@@ -6,6 +6,7 @@ dependencies:
   - pip
   - ipykernel
   - matplotlib
+  - scikit-learn
   - sympy
   - pip:
       - mlflow
