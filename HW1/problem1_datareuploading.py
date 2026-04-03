@@ -26,6 +26,9 @@ class Config:
     epochs: int = 20
     learning_rate: float = 0.03
     hidden_scale: float = 1.0
+    heatmap_grid_size: int = 64
+    device_name: str = "lightning.qubit"
+    diff_method: str | None = None
     tracking_uri: str | None = None
     experiment_name: str = "hw1-problem1-datareuploading"
     run_name: str | None = None
@@ -48,19 +51,28 @@ def make_datasets(num_samples: int) -> tuple[TensorDataset, TensorDataset]:
 
 
 class DataReuploadingRegressor(nn.Module):
-    def __init__(self, num_qubits: int, num_layers: int, hidden_scale: float = 1.0) -> None:
+    def __init__(
+        self,
+        num_qubits: int,
+        num_layers: int,
+        hidden_scale: float = 1.0,
+        device_name: str = "lightning.qubit",
+        diff_method: str = "adjoint",
+    ) -> None:
         super().__init__()
         self.num_qubits = num_qubits
         self.num_layers = num_layers
+        self.device_name = device_name
+        self.diff_method = diff_method
 
         self.input_projection = nn.Linear(2, num_qubits)
         self.output_head = nn.Linear(num_qubits, 1)
         self.feature_scale = nn.Parameter(torch.full((num_qubits,), hidden_scale))
         self.weights = nn.Parameter(0.05 * torch.randn(num_layers, num_qubits, 3))
 
-        self.dev = qml.device("default.qubit", wires=num_qubits)
+        self.dev = qml.device(device_name, wires=num_qubits)
 
-        @qml.qnode(self.dev, interface="torch", diff_method="backprop")
+        @qml.qnode(self.dev, interface="torch", diff_method=diff_method)
         def circuit(encoded_features: torch.Tensor, weights: torch.Tensor) -> list[torch.Tensor]:
             for layer in range(num_layers):
                 for wire in range(num_qubits):
@@ -86,6 +98,34 @@ class DataReuploadingRegressor(nn.Module):
         q_features = torch.stack(circuit_outputs).to(x.dtype)
         return self.output_head(q_features)
 
+
+def resolve_diff_method(device_name: str, requested_diff_method: str | None) -> str:
+    if requested_diff_method is not None:
+        return requested_diff_method
+
+    if device_name == "default.qubit":
+        return "backprop"
+
+    if device_name == "lightning.qubit":
+        return "adjoint"
+
+    raise ValueError(f"Unsupported device: {device_name}")
+
+
+def validate_device_config(device_name: str, diff_method: str) -> None:
+    supported_pairs = {
+        ("default.qubit", "backprop"),
+        ("default.qubit", "adjoint"),
+        ("lightning.qubit", "adjoint"),
+    }
+    if (device_name, diff_method) not in supported_pairs:
+        supported_text = ", ".join(
+            f"{device} + {method}" for device, method in sorted(supported_pairs)
+        )
+        raise ValueError(
+            f"Unsupported device/diff combination: {device_name} + {diff_method}. "
+            f"Try one of: {supported_text}."
+        )
 
 def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> float:
     model.eval()
@@ -135,6 +175,54 @@ def make_circuit_diagram(
     return output_path
 
 
+def make_prediction_heatmap(
+    model: nn.Module, grid_size: int, output_path: Path, batch_size: int = 256
+) -> Path:
+    x1 = np.linspace(0.5, 1.0, grid_size)
+    x2 = np.linspace(0.5, 1.0, grid_size)
+    x1_grid, x2_grid = np.meshgrid(x1, x2)
+    flat_grid = np.stack([x1_grid.ravel(), x2_grid.ravel()], axis=1)
+    flat_tensor = torch.tensor(flat_grid, dtype=torch.float32)
+
+    predictions = []
+    model.eval()
+    with torch.no_grad():
+        for start in range(0, flat_tensor.shape[0], batch_size):
+            batch = flat_tensor[start : start + batch_size]
+            predictions.append(model(batch).squeeze(1).cpu())
+
+    prediction_grid = torch.cat(predictions).reshape(grid_size, grid_size).numpy()
+    target_grid = target_function(flat_tensor).reshape(grid_size, grid_size).numpy()
+    error_grid = np.abs(target_grid - prediction_grid)
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), constrained_layout=True)
+    images = []
+    titles = ["Target on test domain", "Model prediction", "Absolute error"]
+    values = [target_grid, prediction_grid, error_grid]
+    cmaps = ["viridis", "viridis", "magma"]
+
+    for ax, title, value, cmap in zip(axes, titles, values, cmaps):
+        image = ax.imshow(
+            value,
+            extent=(0.5, 1.0, 0.5, 1.0),
+            origin="lower",
+            aspect="auto",
+            cmap=cmap,
+        )
+        ax.set_title(title)
+        ax.set_xlabel("x1")
+        ax.set_ylabel("x2")
+        images.append(image)
+
+    fig.colorbar(images[0], ax=axes[0], fraction=0.046, pad=0.04, label="target")
+    fig.colorbar(images[1], ax=axes[1], fraction=0.046, pad=0.04, label="prediction")
+    fig.colorbar(images[2], ax=axes[2], fraction=0.046, pad=0.04, label="abs error")
+    fig.suptitle("HW1 Problem 1 prediction heatmap on test domain", fontsize=14)
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def train(config: Config, num_samples: int) -> None:
     torch.manual_seed(SEED)
 
@@ -146,6 +234,8 @@ def train(config: Config, num_samples: int) -> None:
         num_qubits=config.num_qubits,
         num_layers=config.num_layers,
         hidden_scale=config.hidden_scale,
+        device_name=config.device_name,
+        diff_method=config.diff_method or resolve_diff_method(config.device_name, None),
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     loss_fn = nn.MSELoss()
@@ -162,6 +252,7 @@ def train(config: Config, num_samples: int) -> None:
         f"layers={config.num_layers} batch_size={config.batch_size} "
         f"epochs={config.epochs} lr={config.learning_rate}"
     , flush=True)
+    print(f"device={config.device_name} diff_method={config.diff_method}", flush=True)
     print(f"trainable_parameters={trainable_parameters}", flush=True)
     print(f"mlflow_tracking_uri={tracking_uri}", flush=True)
     print(f"mlflow_experiment={config.experiment_name}", flush=True)
@@ -178,6 +269,9 @@ def train(config: Config, num_samples: int) -> None:
                 "epochs": config.epochs,
                 "learning_rate": config.learning_rate,
                 "hidden_scale": config.hidden_scale,
+                "heatmap_grid_size": config.heatmap_grid_size,
+                "device_name": config.device_name,
+                "diff_method": config.diff_method,
                 "trainable_parameters": trainable_parameters,
             }
         )
@@ -226,15 +320,19 @@ def train(config: Config, num_samples: int) -> None:
         artifact_dir.mkdir(parents=True, exist_ok=True)
         loss_curve_path = artifact_dir / "problem1_loss_curve.png"
         circuit_path = artifact_dir / "problem1_circuit.png"
+        heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
         make_loss_curve(loss_history, loss_curve_path)
         make_circuit_diagram(model, train_dataset[0][0], circuit_path)
+        make_prediction_heatmap(model, config.heatmap_grid_size, heatmap_path)
         mlflow.log_artifact(str(loss_curve_path), artifact_path="plots")
         mlflow.log_artifact(str(circuit_path), artifact_path="plots")
+        mlflow.log_artifact(str(heatmap_path), artifact_path="plots")
 
         print(flush=True)
         print(f"best_test_mse={best_test_mse:.6f}", flush=True)
         print(f"loss_curve={loss_curve_path}", flush=True)
         print(f"circuit_png={circuit_path}", flush=True)
+        print(f"heatmap_png={heatmap_path}", flush=True)
 
 
 def parse_args() -> tuple[Config, int]:
@@ -245,11 +343,26 @@ def parse_args() -> tuple[Config, int]:
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--learning-rate", type=float, default=0.03)
     parser.add_argument("--hidden-scale", type=float, default=1.0)
+    parser.add_argument("--heatmap-grid-size", type=int, default=64)
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="lightning.qubit",
+        choices=("default.qubit", "lightning.qubit"),
+    )
+    parser.add_argument(
+        "--diff-method",
+        type=str,
+        default=None,
+        choices=("backprop", "adjoint"),
+    )
     parser.add_argument("--num-samples", type=int, default=NUM_SAMPLES)
     parser.add_argument("--tracking-uri", type=str, default=None)
     parser.add_argument("--experiment-name", type=str, default="hw1-problem1-datareuploading")
     parser.add_argument("--run-name", type=str, default=None)
     args = parser.parse_args()
+    diff_method = resolve_diff_method(args.device, args.diff_method)
+    validate_device_config(args.device, diff_method)
 
     config = Config(
         num_qubits=args.num_qubits,
@@ -258,6 +371,9 @@ def parse_args() -> tuple[Config, int]:
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         hidden_scale=args.hidden_scale,
+        heatmap_grid_size=args.heatmap_grid_size,
+        device_name=args.device,
+        diff_method=diff_method,
         tracking_uri=args.tracking_uri,
         experiment_name=args.experiment_name,
         run_name=args.run_name,

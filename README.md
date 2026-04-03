@@ -213,6 +213,24 @@ MLflow. By default it uses a local SQLite backend at `./mlflow.db`.
 The sync helper excludes `mlflow.db`, `mlartifacts/`, and `HW1/artifacts/`
 because they are run outputs rather than source files.
 
+You can switch PennyLane simulator and differentiation mode from the CLI:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py \
+  --device default.qubit \
+  --diff-method backprop
+```
+
+Or try the current faster-to-scale baseline:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1_datareuploading.py \
+  --device lightning.qubit \
+  --diff-method adjoint
+```
+
 To inspect the runs on `gx10`:
 
 ```bash
