@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +30,8 @@ class Config:
     heatmap_grid_size: int = 64
     device_name: str = "lightning.qubit"
     diff_method: str | None = None
+    viewer_export_path: str = "hf_space_hw1/runtime/viewer_data.json"
+    viewer_export_every: int = 1
     tracking_uri: str | None = None
     experiment_name: str = "hw1-problem1-datareuploading"
     run_name: str | None = None
@@ -143,6 +146,33 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> float:
     return total_loss / total_count
 
 
+def build_heatmap_grids(
+    model: nn.Module, grid_size: int, batch_size: int = 256
+) -> dict[str, dict[str, list[list[float]] | list[float]]]:
+    x = np.linspace(0.5, 1.0, grid_size, dtype=np.float32)
+    y = np.linspace(0.5, 1.0, grid_size, dtype=np.float32)
+    x_grid, y_grid = np.meshgrid(x, y)
+    flat_grid = np.stack([x_grid.ravel(), y_grid.ravel()], axis=1)
+    flat_tensor = torch.tensor(flat_grid, dtype=torch.float32)
+
+    predictions = []
+    model.eval()
+    with torch.no_grad():
+        for start in range(0, flat_tensor.shape[0], batch_size):
+            batch = flat_tensor[start : start + batch_size]
+            predictions.append(model(batch).squeeze(1).cpu())
+
+    prediction_grid = torch.cat(predictions).reshape(grid_size, grid_size).numpy()
+    target_grid = target_function(flat_tensor).reshape(grid_size, grid_size).numpy()
+    error_grid = np.abs(target_grid - prediction_grid)
+
+    return {
+        "target": {"x": x.tolist(), "y": y.tolist(), "z": target_grid.tolist()},
+        "prediction": {"x": x.tolist(), "y": y.tolist(), "z": prediction_grid.tolist()},
+        "error": {"x": x.tolist(), "y": y.tolist(), "z": error_grid.tolist()},
+    }
+
+
 def make_loss_curve(loss_history: list[dict[str, float]], output_path: Path) -> Path:
     epochs = [entry["epoch"] for entry in loss_history]
     train_mse = [entry["train_mse"] for entry in loss_history]
@@ -176,24 +206,11 @@ def make_circuit_diagram(
 
 
 def make_prediction_heatmap(
-    model: nn.Module, grid_size: int, output_path: Path, batch_size: int = 256
+    heatmap_grids: dict[str, dict[str, list[list[float]] | list[float]]], output_path: Path
 ) -> Path:
-    x1 = np.linspace(0.5, 1.0, grid_size)
-    x2 = np.linspace(0.5, 1.0, grid_size)
-    x1_grid, x2_grid = np.meshgrid(x1, x2)
-    flat_grid = np.stack([x1_grid.ravel(), x2_grid.ravel()], axis=1)
-    flat_tensor = torch.tensor(flat_grid, dtype=torch.float32)
-
-    predictions = []
-    model.eval()
-    with torch.no_grad():
-        for start in range(0, flat_tensor.shape[0], batch_size):
-            batch = flat_tensor[start : start + batch_size]
-            predictions.append(model(batch).squeeze(1).cpu())
-
-    prediction_grid = torch.cat(predictions).reshape(grid_size, grid_size).numpy()
-    target_grid = target_function(flat_tensor).reshape(grid_size, grid_size).numpy()
-    error_grid = np.abs(target_grid - prediction_grid)
+    target_grid = np.asarray(heatmap_grids["target"]["z"], dtype=np.float32)
+    prediction_grid = np.asarray(heatmap_grids["prediction"]["z"], dtype=np.float32)
+    error_grid = np.asarray(heatmap_grids["error"]["z"], dtype=np.float32)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), constrained_layout=True)
     images = []
@@ -223,6 +240,45 @@ def make_prediction_heatmap(
     return output_path
 
 
+def write_viewer_export(
+    config: Config,
+    viewer_export_path: Path,
+    timeline_steps: list[dict[str, object]],
+) -> Path:
+    viewer_export_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "title": "QCAA HW1 Problem 1",
+        "subtitle": "Data reuploading regression viewer",
+        "status": "trajectory export",
+        "description": (
+            "This export is generated from the latest training run and stores raw heatmap "
+            "grids per batch step for Plotly playback."
+        ),
+        "experiment": {
+            "model": "PennyLane data reuploading regressor",
+            "task": "Regression on f(x1, x2) = sin(exp(x1) + x2)",
+            "train_domain": "[0.0, 0.5] x [0.0, 0.5]",
+            "test_domain": "[0.5, 1.0] x [0.5, 1.0]",
+            "device": f"{config.device_name} + {config.diff_method}",
+            "note": "Slider steps correspond to exported training batches."
+        },
+        "assets": {
+            "circuit": "runtime/problem1_circuit.png",
+            "data_overview": "assets/problem1_data_overview.png"
+        },
+        "grid": {
+            "x_min": 0.5,
+            "x_max": 1.0,
+            "y_min": 0.5,
+            "y_max": 1.0,
+            "grid_size": config.heatmap_grid_size
+        },
+        "timeline_steps": timeline_steps,
+    }
+    viewer_export_path.write_text(json.dumps(payload, indent=2))
+    return viewer_export_path
+
+
 def train(config: Config, num_samples: int) -> None:
     torch.manual_seed(SEED)
 
@@ -241,6 +297,7 @@ def train(config: Config, num_samples: int) -> None:
     loss_fn = nn.MSELoss()
     trainable_parameters = sum(parameter.numel() for parameter in model.parameters())
     loss_history: list[dict[str, float]] = []
+    timeline_steps: list[dict[str, object]] = []
 
     tracking_uri = config.tracking_uri or f"sqlite:///{(Path.cwd() / 'mlflow.db').resolve()}"
     mlflow.set_tracking_uri(tracking_uri)
@@ -256,6 +313,7 @@ def train(config: Config, num_samples: int) -> None:
     print(f"trainable_parameters={trainable_parameters}", flush=True)
     print(f"mlflow_tracking_uri={tracking_uri}", flush=True)
     print(f"mlflow_experiment={config.experiment_name}", flush=True)
+    print("viewer_steps=batch", flush=True)
     print(flush=True)
 
     with mlflow.start_run(run_name=config.run_name):
@@ -272,10 +330,13 @@ def train(config: Config, num_samples: int) -> None:
                 "heatmap_grid_size": config.heatmap_grid_size,
                 "device_name": config.device_name,
                 "diff_method": config.diff_method,
+                "viewer_export_path": config.viewer_export_path,
+                "viewer_export_every": config.viewer_export_every,
                 "trainable_parameters": trainable_parameters,
             }
         )
 
+        global_step = 0
         for epoch in range(1, config.epochs + 1):
             model.train()
             progress = tqdm(
@@ -286,13 +347,32 @@ def train(config: Config, num_samples: int) -> None:
                 dynamic_ncols=True,
             )
 
-            for features, labels in progress:
+            for batch_index, (features, labels) in enumerate(progress, start=1):
                 optimizer.zero_grad()
                 predictions = model(features)
                 loss = loss_fn(predictions, labels)
                 loss.backward()
                 optimizer.step()
-                progress.set_postfix(batch_loss=f"{float(loss.item()):.6f}", refresh=True)
+                global_step += 1
+                batch_loss = float(loss.item())
+                progress.set_postfix(batch_loss=f"{batch_loss:.6f}", refresh=True)
+
+                if global_step % config.viewer_export_every == 0:
+                    test_mse = evaluate(model, test_loader, loss_fn)
+                    heatmap_grids = build_heatmap_grids(model, config.heatmap_grid_size)
+                    timeline_steps.append(
+                        {
+                            "label": f"epoch {epoch:02d} batch {batch_index:02d}",
+                            "epoch": epoch,
+                            "batch": batch_index,
+                            "global_step": global_step,
+                            "batch_loss": batch_loss,
+                            "test_mse": test_mse,
+                            "heatmaps": heatmap_grids,
+                        }
+                    )
+                    mlflow.log_metric("batch_loss", batch_loss, step=global_step)
+                    mlflow.log_metric("step_test_mse", test_mse, step=global_step)
 
             train_mse = evaluate(model, train_loader, loss_fn)
             test_mse = evaluate(model, test_loader, loss_fn)
@@ -318,21 +398,32 @@ def train(config: Config, num_samples: int) -> None:
 
         artifact_dir = Path("HW1") / "artifacts"
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        hf_runtime_dir = Path("hf_space_hw1") / "runtime"
+        hf_runtime_dir.mkdir(parents=True, exist_ok=True)
+        viewer_export_path = Path(config.viewer_export_path)
         loss_curve_path = artifact_dir / "problem1_loss_curve.png"
         circuit_path = artifact_dir / "problem1_circuit.png"
         heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
+        hf_circuit_path = hf_runtime_dir / "problem1_circuit.png"
+        final_heatmap_grids = timeline_steps[-1]["heatmaps"] if timeline_steps else build_heatmap_grids(
+            model, config.heatmap_grid_size
+        )
         make_loss_curve(loss_history, loss_curve_path)
         make_circuit_diagram(model, train_dataset[0][0], circuit_path)
-        make_prediction_heatmap(model, config.heatmap_grid_size, heatmap_path)
+        make_circuit_diagram(model, train_dataset[0][0], hf_circuit_path)
+        make_prediction_heatmap(final_heatmap_grids, heatmap_path)
+        write_viewer_export(config, viewer_export_path, timeline_steps)
         mlflow.log_artifact(str(loss_curve_path), artifact_path="plots")
         mlflow.log_artifact(str(circuit_path), artifact_path="plots")
         mlflow.log_artifact(str(heatmap_path), artifact_path="plots")
+        mlflow.log_artifact(str(viewer_export_path), artifact_path="viewer")
 
         print(flush=True)
         print(f"best_test_mse={best_test_mse:.6f}", flush=True)
         print(f"loss_curve={loss_curve_path}", flush=True)
         print(f"circuit_png={circuit_path}", flush=True)
         print(f"heatmap_png={heatmap_path}", flush=True)
+        print(f"viewer_export={viewer_export_path}", flush=True)
 
 
 def parse_args() -> tuple[Config, int]:
@@ -357,6 +448,8 @@ def parse_args() -> tuple[Config, int]:
         choices=("backprop", "adjoint"),
     )
     parser.add_argument("--num-samples", type=int, default=NUM_SAMPLES)
+    parser.add_argument("--viewer-export-path", type=str, default="hf_space_hw1/runtime/viewer_data.json")
+    parser.add_argument("--viewer-export-every", type=int, default=1)
     parser.add_argument("--tracking-uri", type=str, default=None)
     parser.add_argument("--experiment-name", type=str, default="hw1-problem1-datareuploading")
     parser.add_argument("--run-name", type=str, default=None)
@@ -374,6 +467,8 @@ def parse_args() -> tuple[Config, int]:
         heatmap_grid_size=args.heatmap_grid_size,
         device_name=args.device,
         diff_method=diff_method,
+        viewer_export_path=args.viewer_export_path,
+        viewer_export_every=args.viewer_export_every,
         tracking_uri=args.tracking_uri,
         experiment_name=args.experiment_name,
         run_name=args.run_name,

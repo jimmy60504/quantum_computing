@@ -1,4 +1,7 @@
-const dataUrl = "./data/viewer_data.json";
+const dataUrls = [
+  "./runtime/viewer_data.json",
+  "./data/viewer_data.template.json"
+];
 
 const pageTitle = document.getElementById("page-title");
 const pageSubtitle = document.getElementById("page-subtitle");
@@ -69,61 +72,24 @@ function makeAxisLayout(title) {
 }
 
 function renderHeatmapPlot(element, spec) {
-  if (spec?.z) {
-    Plotly.react(
-      element,
-      [
-        {
-          type: "heatmap",
-          x: spec.x,
-          y: spec.y,
-          z: spec.z,
-          colorscale: spec.colorscale || "Viridis",
-          zsmooth: false,
-          hovertemplate: "x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
-          colorbar: {
-            thickness: 10,
-            len: 0.8
-          }
-        }
-      ],
-      makeAxisLayout(spec.title),
-      { displayModeBar: false, responsive: true }
-    );
-    return;
-  }
-
   Plotly.react(
     element,
-    [],
-    {
-      ...makeAxisLayout(spec.title),
-      images: [
-        {
-          source: spec.fallback,
-          xref: "paper",
-          yref: "paper",
-          x: 0,
-          y: 1,
-          sizex: 1,
-          sizey: 1,
-          sizing: "stretch",
-          layer: "below",
-          opacity: 1
+    [
+      {
+        type: "heatmap",
+        x: spec.x,
+        y: spec.y,
+        z: spec.z,
+        colorscale: spec.colorscale || "Viridis",
+        zsmooth: false,
+        hovertemplate: "x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
+        colorbar: {
+          thickness: 10,
+          len: 0.8
         }
-      ],
-      annotations: [
-        {
-          xref: "paper",
-          yref: "paper",
-          x: 0.5,
-          y: -0.16,
-          text: "Raster fallback until raw grid export is available",
-          showarrow: false,
-          font: { size: 12, color: "#51615b" }
-        }
-      ]
-    },
+      }
+    ],
+    makeAxisLayout(spec.title),
     { displayModeBar: false, responsive: true }
   );
 }
@@ -131,6 +97,7 @@ function renderHeatmapPlot(element, spec) {
 function renderLossChart(steps, currentIndex) {
   if (!steps.length) {
     chartEmpty.hidden = false;
+    chartEmpty.style.display = "flex";
     Plotly.react(
       lossChart,
       [],
@@ -147,9 +114,16 @@ function renderLossChart(steps, currentIndex) {
   }
 
   chartEmpty.hidden = true;
-  const x = steps.map((_, index) => index);
-  const tickText = steps.map((step, index) => step.label || `step ${index}`);
+  chartEmpty.style.display = "none";
+  const x = steps.map((step, index) => step.global_step || index + 1);
   const currentStep = steps[currentIndex];
+  const primarySeries = steps.map((step) => step.batch_loss ?? step.train_mse ?? 0);
+  const secondarySeries = steps.map((step) => step.test_mse ?? 0);
+  const tickCount = Math.min(8, x.length);
+  const tickvals = Array.from({ length: tickCount }, (_, index) => {
+    const stepIndex = Math.round((index / Math.max(tickCount - 1, 1)) * (x.length - 1));
+    return x[stepIndex];
+  });
 
   Plotly.react(
     lossChart,
@@ -157,9 +131,9 @@ function renderLossChart(steps, currentIndex) {
       {
         type: "scatter",
         mode: "lines+markers",
-        name: "Train MSE",
+        name: steps[0].batch_loss !== undefined ? "Batch loss" : "Train MSE",
         x,
-        y: steps.map((step) => step.train_mse),
+        y: primarySeries,
         line: { color: "#0d8f71", width: 3 },
         marker: { size: 8 }
       },
@@ -181,8 +155,7 @@ function renderLossChart(steps, currentIndex) {
       xaxis: {
         title: "Step",
         tickmode: "array",
-        tickvals: x,
-        ticktext: tickText,
+        tickvals,
         gridcolor: "rgba(23,33,29,0.08)"
       },
       yaxis: {
@@ -192,8 +165,8 @@ function renderLossChart(steps, currentIndex) {
       shapes: [
         {
           type: "line",
-          x0: currentIndex,
-          x1: currentIndex,
+          x0: x[currentIndex],
+          x1: x[currentIndex],
           y0: 0,
           y1: 1,
           yref: "paper",
@@ -202,10 +175,10 @@ function renderLossChart(steps, currentIndex) {
       ],
       annotations: [
         {
-          x: currentIndex,
-          y: Math.max(currentStep.train_mse, currentStep.test_mse),
+          x: x[currentIndex],
+          y: Math.max(primarySeries[currentIndex], secondarySeries[currentIndex]),
           yshift: 18,
-          text: currentStep.label || `step ${currentIndex}`,
+          text: currentStep.label || `step ${currentIndex + 1}`,
           showarrow: false,
           bgcolor: "rgba(255,252,245,0.92)",
           bordercolor: "rgba(23,33,29,0.12)",
@@ -224,7 +197,7 @@ function refreshStepState(data, index) {
   if (!steps.length) {
     currentStepLabel.textContent = "Final snapshot";
     playbackMode.textContent = "Static export";
-    timelineCaption.textContent = "Plotly viewer is ready; waiting for raw step grids.";
+    timelineCaption.textContent = "Waiting for raw step grids.";
 
     renderHeatmapPlot(targetPlot, {
       title: "Target",
@@ -233,11 +206,15 @@ function refreshStepState(data, index) {
     });
     renderHeatmapPlot(predictionPlot, {
       title: "Prediction",
-      fallback: data.assets.prediction_fallback
+      ...targetGrid,
+      z: targetGrid.z.map((row) => row.map(() => 0)),
+      colorscale: "Viridis"
     });
     renderHeatmapPlot(errorPlot, {
       title: "Absolute Error",
-      fallback: data.assets.error_fallback
+      ...targetGrid,
+      z: targetGrid.z.map((row) => row.map(() => 0)),
+      colorscale: "Magma"
     });
     renderLossChart([], 0);
     return;
@@ -246,7 +223,11 @@ function refreshStepState(data, index) {
   const current = steps[index];
   currentStepLabel.textContent = current.label || `Step ${index + 1}`;
   playbackMode.textContent = "Trajectory replay";
-  timelineCaption.textContent = `Train MSE ${current.train_mse.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
+  if (current.batch_loss !== undefined) {
+    timelineCaption.textContent = `Batch loss ${current.batch_loss.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
+  } else {
+    timelineCaption.textContent = `Train MSE ${current.train_mse.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
+  }
 
   renderHeatmapPlot(targetPlot, {
     title: "Target",
@@ -257,26 +238,34 @@ function refreshStepState(data, index) {
   });
   renderHeatmapPlot(predictionPlot, {
     title: "Prediction",
-    x: current.heatmaps?.prediction?.x,
-    y: current.heatmaps?.prediction?.y,
+    x: current.heatmaps?.prediction?.x || targetGrid.x,
+    y: current.heatmaps?.prediction?.y || targetGrid.y,
     z: current.heatmaps?.prediction?.z,
-    colorscale: "Viridis",
-    fallback: data.assets.prediction_fallback
+    colorscale: "Viridis"
   });
   renderHeatmapPlot(errorPlot, {
     title: "Absolute Error",
-    x: current.heatmaps?.error?.x,
-    y: current.heatmaps?.error?.y,
+    x: current.heatmaps?.error?.x || targetGrid.x,
+    y: current.heatmaps?.error?.y || targetGrid.y,
     z: current.heatmaps?.error?.z,
-    colorscale: "Magma",
-    fallback: data.assets.error_fallback
+    colorscale: "Magma"
   });
   renderLossChart(steps, index);
 }
 
 async function main() {
-  const response = await fetch(dataUrl);
-  const data = await response.json();
+  let data = null;
+  for (const url of dataUrls) {
+    const response = await fetch(url);
+    if (response.ok) {
+      data = await response.json();
+      break;
+    }
+  }
+
+  if (!data) {
+    throw new Error("No viewer data available.");
+  }
 
   pageTitle.textContent = data.title;
   pageSubtitle.textContent = data.subtitle;

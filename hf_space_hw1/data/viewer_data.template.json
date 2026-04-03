@@ -1,20 +1,17 @@
 {
   "title": "QCAA HW1 Problem 1",
   "subtitle": "Data reuploading regression viewer",
-  "status": "single-checkpoint export",
-  "description": "This static export reuses the latest saved repository artifacts. The UI is ready for step-by-step replay once trajectory snapshots are exported from training.",
+  "status": "template export",
+  "description": "The viewer first looks for a gx10-generated runtime export. If no runtime data exists, it falls back to this lightweight template.",
   "experiment": {
     "model": "PennyLane data reuploading regressor",
     "task": "Regression on f(x1, x2) = sin(exp(x1) + x2)",
     "train_domain": "[0.0, 0.5] x [0.0, 0.5]",
     "test_domain": "[0.5, 1.0] x [0.5, 1.0]",
     "device": "configurable: default.qubit or lightning.qubit",
-    "note": "This export ships with a final snapshot only. Full trajectory playback can be enabled later by adding timeline_steps entries."
+    "note": "Run training on gx10 to populate hf_space_hw1/runtime/viewer_data.json."
   },
   "assets": {
-    "target_fallback": "assets/target_fallback.png",
-    "prediction_fallback": "assets/prediction_fallback.png",
-    "error_fallback": "assets/error_fallback.png",
     "circuit": "assets/problem1_circuit.png",
     "data_overview": "assets/problem1_data_overview.png"
   },

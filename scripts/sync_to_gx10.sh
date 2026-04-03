@@ -17,4 +17,5 @@ rsync -av --delete \
   --exclude 'mlartifacts' \
   --exclude 'mlflow.db' \
   --exclude 'HW1/artifacts' \
+  --exclude 'hf_space_hw1/runtime' \
   "${REPO_ROOT}/" "${REMOTE_HOST}:${REMOTE_REPO_DIR}/"

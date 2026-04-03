@@ -11,17 +11,16 @@ pinned: false
 
 Static Hugging Face Space for visualizing the current `HW1 Problem 1` export.
 
-This first export is intentionally training-free:
+Workflow:
 
-- It reuses the latest saved repository artifacts.
-- It uses Plotly for the heatmap and loss panels.
-- It shows the current circuit diagram and data overview.
-- The target panel is drawn from numeric grid data in the browser.
-- The prediction and error panels currently use raster fallback images because
-  the training script has not exported raw grid tensors yet.
-- The viewer already supports a step slider and timeline panel.
-- When step-by-step snapshots are exported later, the same UI can replay them
-  without changing the Space structure.
+- Keep this folder in the repository as the static app scaffold.
+- Let `gx10` training write runtime files into `hf_space_hw1/runtime/`.
+- The viewer first looks for `runtime/viewer_data.json`.
+- If no runtime export exists, it falls back to `data/viewer_data.template.json`.
+- Runtime exports are batch-based by default, so the slider advances one
+  optimizer step at a time.
+- When you are ready to publish, build a clean bundle from `gx10` and push that
+  bundle to a Hugging Face Static Space.
 
 ## Local preview
 
@@ -36,5 +35,13 @@ Then open `http://localhost:8000`.
 
 ## Publish to Hugging Face
 
-Create a new Static HTML Space, then copy the contents of this folder into the
-Space repository and push.
+On `gx10`:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_prepare_hf_space.sh
+```
+
+That creates a clean bundle under `.out/hf_space_hw1_publish/` with the latest
+runtime export included. Push the contents of that directory to a Hugging Face
+Static Space repository.

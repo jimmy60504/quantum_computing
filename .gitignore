@@ -9,4 +9,6 @@ __pycache__/
 .env
 dist/
 build/
-
+mlflow.db
+HW1/artifacts/
+hf_space_hw1/runtime/

@@ -243,7 +243,29 @@ cd ~/quantum_computing
 The repository includes a static Hugging Face Space export scaffold in
 [hf_space_hw1](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/hf_space_hw1).
 
-Preview it locally:
+Recommended workflow:
+
+- Sync code from your Mac to `gx10`
+- Run training on `gx10`
+- Keep generated viewer data on `gx10` under `hf_space_hw1/runtime/`
+- The viewer export is batch-based: one slider step per exported batch
+- Only prepare a publish bundle when you are ready to upload to Hugging Face
+
+Preview it on `gx10`:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_hf_viewer.sh
+```
+
+Prepare a publish bundle on `gx10`:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_prepare_hf_space.sh
+```
+
+Preview it locally if needed:
 
 ```bash
 cd hf_space_hw1
