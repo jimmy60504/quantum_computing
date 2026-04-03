@@ -39,10 +39,6 @@ const overlayCameraStates = {
   train: null,
   test: null,
 };
-const overlayPlotRunId = {
-  train: null,
-  test: null,
-};
 let cameraSyncLocked = false;
 let activeLoadToken = 0;
 
@@ -357,66 +353,59 @@ function renderOverlayPlot(element, domainKey, predictionGrid, domainPoints) {
     return;
   }
 
-  const isNewRun = overlayPlotRunId[domainKey] !== currentRunId;
-
-  if (isNewRun) {
-    Plotly.purge(element);
-    Plotly.newPlot(
-      element,
-      [
-        {
-          type: "surface",
-          x: predictionGrid.x,
-          y: predictionGrid.y,
-          z: predictionGrid.z,
-          colorscale: "Viridis",
-          opacity: 0.62,
-          showscale: false,
-          contours: {
-            z: {
-              show: true,
-              usecolormap: false,
-              color: "rgba(255,255,255,0.35)",
-              width: 1,
-            },
+  const pointDisplayZ = domainPoints.z || [];
+  Plotly.react(
+    element,
+    [
+      {
+        type: "surface",
+        x: predictionGrid.x,
+        y: predictionGrid.y,
+        z: predictionGrid.z,
+        colorscale: "Viridis",
+        opacity: 0.62,
+        showscale: false,
+        contours: {
+          z: {
+            show: true,
+            usecolormap: false,
+            color: "rgba(255,255,255,0.35)",
+            width: 1,
           },
-          hovertemplate:
-            "Prediction surface<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
         },
-        {
-          type: "scatter3d",
-          mode: "markers",
-          x: domainPoints.x,
-          y: domainPoints.y,
-          z: domainPoints.z,
-          name: `${domainKey} targets`,
-          marker: {
-            size: 2.1,
-            color: domainKey === "train" ? "rgba(13,143,113,0.88)" : "rgba(239,131,84,0.92)",
-            opacity: 0.82,
-            line: { width: 0.35, color: "rgba(255,255,255,0.5)" },
+        hovertemplate:
+          "Prediction surface<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
+      },
+      {
+        type: "scatter3d",
+        mode: "markers",
+        x: domainPoints.x,
+        y: domainPoints.y,
+        z: pointDisplayZ,
+        customdata: domainPoints.z,
+        name: `${domainKey} targets`,
+        marker: {
+          size: 2.1,
+          color: domainKey === "train" ? "rgba(13,143,113,0.88)" : "rgba(239,131,84,0.92)",
+          opacity: 0.82,
+          line: {
+            width: 0.45,
+            color: "rgba(255,255,255,0.6)",
           },
-          hovertemplate:
-            `${domainKey} sample<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>`,
         },
-      ],
-      makeSurfaceLayout(
-        null,
-        domainKey,
-        [Math.min(...predictionGrid.x), Math.max(...predictionGrid.x)],
-        [Math.min(...predictionGrid.y), Math.max(...predictionGrid.y)]
-      ),
-      { displayModeBar: false, responsive: true }
-    );
-    bindOverlayCameraTracking(element, domainKey);
-    overlayPlotRunId[domainKey] = currentRunId;
-  } else {
-    Plotly.restyle(element, {
-      x: [predictionGrid.x, domainPoints.x],
-      y: [predictionGrid.y, domainPoints.y],
-      z: [predictionGrid.z, domainPoints.z],
-    }, [0, 1]);
-  }
+        hovertemplate:
+          `${domainKey} sample<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{customdata:.6f}<extra></extra>`,
+      },
+    ],
+    makeSurfaceLayout(
+      null,
+      domainKey,
+      [Math.min(...predictionGrid.x), Math.max(...predictionGrid.x)],
+      [Math.min(...predictionGrid.y), Math.max(...predictionGrid.y)]
+    ),
+    { displayModeBar: false, responsive: true }
+  );
+  bindOverlayCameraTracking(element, domainKey);
 }
 
 function renderLossChart(steps, currentIndex) {
@@ -459,7 +448,7 @@ function renderLossChart(steps, currentIndex) {
     [
       {
         type: "scatter",
-        mode: "lines+markers",
+        mode: "lines",
         name: steps[0].batch_loss !== undefined ? "Batch loss" : "Train MSE",
         x,
         y: primarySeries,
@@ -468,7 +457,7 @@ function renderLossChart(steps, currentIndex) {
       },
       {
         type: "scatter",
-        mode: "lines+markers",
+        mode: "lines",
         name: "Test MSE",
         x,
         y: secondarySeries,
@@ -578,7 +567,7 @@ function refreshStepState(data, index) {
     trainOverlayPlot,
     "train",
     trainPredictionGrid,
-    current.train_batch_points || getDomainPoints(data, "train", trainTargetGrid),
+    getDomainPoints(data, "train", trainTargetGrid),
     "Train surface vs train samples"
   );
   renderOverlayPlot(

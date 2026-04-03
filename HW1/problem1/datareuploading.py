@@ -345,6 +345,7 @@ def write_viewer_export(
     viewer_export_path: Path,
     runtime_circuit_path: Path,
     timeline_steps: list[dict[str, object]],
+    train_points: dict[str, list[float]],
     test_points: dict[str, list[float]],
 ) -> Path:
     viewer_export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -372,6 +373,7 @@ def write_viewer_export(
             "grid_size": config.heatmap_grid_size
         },
         "samples": {
+            "train": train_points,
             "test": test_points,
         },
         "timeline_steps": timeline_steps,
@@ -388,7 +390,7 @@ def update_viewer_manifest(
     manifest_path: Path,
     export_path: Path,
     config: Config,
-    best_test_mse: float,
+    best_test_mse: float | None,
     timeline_steps: list[dict[str, object]],
 ) -> Path:
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -463,7 +465,6 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
         "batch": snapshot["batch"],
         "global_step": snapshot["global_step"],
         "batch_loss": snapshot["batch_loss"],
-        "train_batch_points": snapshot["train_batch_points"],
         "train_mse": train_mse,
         "test_mse": test_mse,
         "heatmaps": heatmaps,
@@ -524,6 +525,7 @@ def train(config: Config, num_samples: int) -> None:
     torch.manual_seed(SEED)
 
     train_dataset, test_dataset = make_datasets(num_samples)
+    train_points = serialize_dataset_points(train_dataset)
     test_points = serialize_dataset_points(test_dataset)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
@@ -591,6 +593,24 @@ def train(config: Config, num_samples: int) -> None:
         circuit_path = artifact_dir / "problem1_circuit.png"
         heatmap_path = artifact_dir / "problem1_prediction_heatmap.png"
 
+        make_circuit_diagram(model, train_dataset[0][0], circuit_path)
+        make_circuit_diagram(model, train_dataset[0][0], runtime_circuit_path)
+        write_viewer_export(
+            config,
+            viewer_export_path,
+            runtime_circuit_path,
+            timeline_steps,
+            train_points,
+            test_points,
+        )
+        update_viewer_manifest(
+            viewer_manifest_path,
+            viewer_export_path,
+            config,
+            None,
+            timeline_steps,
+        )
+
         global_step = 0
         for epoch in range(1, config.epochs + 1):
             epoch_snapshots: list[dict[str, object]] = []
@@ -625,7 +645,6 @@ def train(config: Config, num_samples: int) -> None:
                             "batch": batch_index,
                             "global_step": global_step,
                             "batch_loss": batch_loss,
-                            "train_batch_points": serialize_batch_points(features, labels),
                             "model_state": snapshot_model_state(model),
                         }
                     )
@@ -647,7 +666,6 @@ def train(config: Config, num_samples: int) -> None:
                         "batch": last_batch_index,
                         "global_step": global_step,
                         "batch_loss": last_batch_loss,
-                        "train_batch_points": serialize_batch_points(features, labels),
                         "model_state": snapshot_model_state(model),
                     }
                 )
@@ -670,6 +688,7 @@ def train(config: Config, num_samples: int) -> None:
                 viewer_export_path,
                 runtime_circuit_path,
                 timeline_steps,
+                train_points,
                 test_points,
             )
             update_viewer_manifest(
@@ -707,6 +726,7 @@ def train(config: Config, num_samples: int) -> None:
             viewer_export_path,
             runtime_circuit_path,
             timeline_steps,
+            train_points,
             test_points,
         )
         update_viewer_manifest(
