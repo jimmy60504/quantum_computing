@@ -34,6 +34,7 @@ echo
 for q in "${QUBITS[@]}"; do
   for l in "${LAYERS[@]}"; do
     RUN_NAME="q${q}-l${l}-e${EPOCHS}"
+    mkdir -p "${LOG_DIR}"
     LOG_PATH="${LOG_DIR}/${RUN_NAME}.log"
 
     echo "============================================================"

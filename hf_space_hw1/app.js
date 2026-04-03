@@ -451,21 +451,21 @@ function renderLossChart(steps, currentIndex) {
     [
       {
         type: "scatter",
-        mode: "lines",
+        mode: "lines+markers",
         name: steps[0].batch_loss !== undefined ? "Batch loss" : "Train MSE",
         x,
         y: primarySeries,
         line: { color: "#0d8f71", width: 3 },
-        marker: { size: 8 },
+        marker: { size: 6 },
       },
       {
         type: "scatter",
-        mode: "lines",
+        mode: "lines+markers",
         name: "Test MSE",
         x,
         y: secondarySeries,
         line: { color: "#ef8354", width: 3 },
-        marker: { size: 8 },
+        marker: { size: 6 },
       },
     ],
     {

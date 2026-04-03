@@ -128,14 +128,14 @@
               <div class="timeline-title-row">
                 <h2>Loss By Step</h2>
                 <span id="current-step-label" class="timeline-title-pill">Final snapshot</span>
+                <div class="timeline-slider-inline">
+                  <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
+                </div>
                 <span id="timeline-caption" class="timeline-title-metrics">
                   Waiting for per-step trajectory export.
                 </span>
               </div>
             </div>
-          </div>
-          <div class="timeline-controls">
-            <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
           </div>
           <div class="chart-wrap">
             <div id="loss-chart" class="plot-surface plot-surface-wide"></div>
