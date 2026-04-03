@@ -113,6 +113,44 @@ h2 {
   font-weight: 700;
 }
 
+.loading-panel {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.loading-panel[hidden] {
+  display: none !important;
+}
+
+.loading-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.92rem;
+}
+
+.loading-meta strong {
+  font-size: 0.94rem;
+}
+
+.loading-track {
+  overflow: hidden;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(23, 33, 29, 0.08);
+}
+
+.loading-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--accent) 100%);
+  transition: width 180ms ease;
+}
+
 .slider-label,
 .meta-label {
   display: block;
@@ -208,7 +246,7 @@ input[type="range"] {
 
 .heatmap-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) minmax(300px, 0.9fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -231,7 +269,11 @@ input[type="range"] {
 }
 
 .plot-surface-hero {
-  min-height: 500px;
+  min-height: 390px;
+}
+
+.plot-surface-tall {
+  min-height: 185px;
 }
 
 .plot-surface-wide {
@@ -271,6 +313,50 @@ input[type="range"] {
 
 .chart-empty[hidden] {
   display: none !important;
+}
+
+.error-column-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.error-column {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 14px;
+}
+
+.error-panel {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(23, 33, 29, 0.08);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.error-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+  border-right: 1px solid rgba(23, 33, 29, 0.08);
+  background: rgba(255, 252, 245, 0.72);
+}
+
+@media (max-width: 1500px) {
+  .heatmap-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .error-column-card {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 1100px) {

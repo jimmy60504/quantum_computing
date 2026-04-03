@@ -21,6 +21,9 @@ from tqdm.auto import tqdm
 
 from problem1_sample import NUM_SAMPLES, SEED, sample_inputs, target_function
 
+TRAIN_RANGES = np.array([0.0, 0.5] * 2).reshape(2, 2)
+TEST_RANGES = np.array([0.5, 1.0] * 2).reshape(2, 2)
+
 
 @dataclass
 class Config:
@@ -45,11 +48,8 @@ def make_datasets(num_samples: int) -> tuple[TensorDataset, TensorDataset]:
     np.random.seed(SEED)
     torch.manual_seed(SEED)
 
-    train_ranges = np.array([0.0, 0.5] * 2).reshape(2, 2)
-    test_ranges = np.array([0.5, 1.0] * 2).reshape(2, 2)
-
-    train_input = sample_inputs(num_samples, train_ranges)
-    test_input = sample_inputs(num_samples, test_ranges)
+    train_input = sample_inputs(num_samples, TRAIN_RANGES)
+    test_input = sample_inputs(num_samples, TEST_RANGES)
 
     train_label = target_function(train_input).unsqueeze(1)
     test_label = target_function(test_input).unsqueeze(1)
@@ -209,10 +209,13 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> float:
 
 
 def build_heatmap_grids(
-    model: nn.Module, grid_size: int, batch_size: int = 256
+    model: nn.Module,
+    grid_size: int,
+    ranges: np.ndarray,
+    batch_size: int = 256,
 ) -> dict[str, dict[str, list[list[float]] | list[float]]]:
-    x = np.linspace(0.5, 1.0, grid_size, dtype=np.float32)
-    y = np.linspace(0.5, 1.0, grid_size, dtype=np.float32)
+    x = np.linspace(float(ranges[0, 0]), float(ranges[0, 1]), grid_size, dtype=np.float32)
+    y = np.linspace(float(ranges[1, 0]), float(ranges[1, 1]), grid_size, dtype=np.float32)
     x_grid, y_grid = np.meshgrid(x, y)
     flat_grid = np.stack([x_grid.ravel(), y_grid.ravel()], axis=1)
     flat_tensor = torch.tensor(flat_grid, dtype=torch.float32)
@@ -232,6 +235,17 @@ def build_heatmap_grids(
         "target": {"x": x.tolist(), "y": y.tolist(), "z": target_grid.tolist()},
         "prediction": {"x": x.tolist(), "y": y.tolist(), "z": prediction_grid.tolist()},
         "error": {"x": x.tolist(), "y": y.tolist(), "z": error_grid.tolist()},
+    }
+
+
+def build_dual_domain_heatmaps(
+    model: nn.Module,
+    grid_size: int,
+    batch_size: int = 256,
+) -> dict[str, dict[str, dict[str, list[list[float]] | list[float]]]]:
+    return {
+        "train": build_heatmap_grids(model, grid_size, TRAIN_RANGES, batch_size=batch_size),
+        "test": build_heatmap_grids(model, grid_size, TEST_RANGES, batch_size=batch_size),
     }
 
 
@@ -315,6 +329,7 @@ def write_viewer_export(
     config: Config,
     viewer_export_path: Path,
     timeline_steps: list[dict[str, object]],
+    train_points: dict[str, list[float]],
     test_points: dict[str, list[float]],
 ) -> Path:
     viewer_export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -339,13 +354,10 @@ def write_viewer_export(
             "data_overview": "assets/problem1_data_overview.png"
         },
         "grid": {
-            "x_min": 0.5,
-            "x_max": 1.0,
-            "y_min": 0.5,
-            "y_max": 1.0,
             "grid_size": config.heatmap_grid_size
         },
         "samples": {
+            "train": train_points,
             "test": test_points,
         },
         "timeline_steps": timeline_steps,
@@ -408,7 +420,12 @@ def init_render_worker() -> None:
 def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
     config_dict = task["config"]
     snapshot = task["snapshot"]
-    _, test_dataset = make_datasets(int(config_dict["num_samples"]))
+    train_dataset, test_dataset = make_datasets(int(config_dict["num_samples"]))
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=int(config_dict["batch_size"]),
+        shuffle=False,
+    )
     test_loader = DataLoader(
         test_dataset,
         batch_size=int(config_dict["batch_size"]),
@@ -422,8 +439,9 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
         diff_method=str(config_dict["diff_method"]),
     )
     load_model_state_snapshot(model, snapshot["model_state"])
+    train_mse = evaluate(model, train_loader, nn.MSELoss())
     test_mse = evaluate(model, test_loader, nn.MSELoss())
-    heatmaps = build_heatmap_grids(model, int(config_dict["heatmap_grid_size"]))
+    heatmaps = build_dual_domain_heatmaps(model, int(config_dict["heatmap_grid_size"]))
 
     return {
         "label": snapshot["label"],
@@ -431,6 +449,7 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
         "batch": snapshot["batch"],
         "global_step": snapshot["global_step"],
         "batch_loss": snapshot["batch_loss"],
+        "train_mse": train_mse,
         "test_mse": test_mse,
         "heatmaps": heatmaps,
     }
@@ -490,6 +509,7 @@ def train(config: Config, num_samples: int) -> None:
     torch.manual_seed(SEED)
 
     train_dataset, test_dataset = make_datasets(num_samples)
+    train_points = serialize_dataset_points(train_dataset)
     test_points = serialize_dataset_points(test_dataset)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
@@ -629,7 +649,13 @@ def train(config: Config, num_samples: int) -> None:
                     step=int(step["global_step"]),
                 )
 
-            write_viewer_export(config, viewer_export_path, timeline_steps, test_points)
+            write_viewer_export(
+                config,
+                viewer_export_path,
+                timeline_steps,
+                train_points,
+                test_points,
+            )
             update_viewer_manifest(
                 viewer_manifest_path,
                 viewer_export_path,
@@ -651,14 +677,22 @@ def train(config: Config, num_samples: int) -> None:
         mlflow.log_metric("best_test_mse", best_test_mse)
         mlflow.log_metric("final_train_mse", final_train_mse)
         mlflow.log_metric("final_test_mse", final_test_mse)
-        final_heatmap_grids = timeline_steps[-1]["heatmaps"] if timeline_steps else build_heatmap_grids(
-            model, config.heatmap_grid_size
+        final_heatmap_grids = (
+            timeline_steps[-1]["heatmaps"]
+            if timeline_steps
+            else build_dual_domain_heatmaps(model, config.heatmap_grid_size)
         )
         make_loss_curve(loss_history, loss_curve_path)
         make_circuit_diagram(model, train_dataset[0][0], circuit_path)
         make_circuit_diagram(model, train_dataset[0][0], hf_circuit_path)
-        make_prediction_heatmap(final_heatmap_grids, heatmap_path)
-        write_viewer_export(config, viewer_export_path, timeline_steps, test_points)
+        make_prediction_heatmap(final_heatmap_grids["test"], heatmap_path)
+        write_viewer_export(
+            config,
+            viewer_export_path,
+            timeline_steps,
+            train_points,
+            test_points,
+        )
         update_viewer_manifest(
             viewer_manifest_path,
             viewer_export_path,

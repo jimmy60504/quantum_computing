@@ -40,6 +40,15 @@
             <h2>Playback</h2>
             <span id="export-status" class="status-pill">loading</span>
           </div>
+          <div id="loading-panel" class="loading-panel" hidden>
+            <div class="loading-meta">
+              <strong id="loading-label">Preparing viewer…</strong>
+              <span id="loading-percent">0%</span>
+            </div>
+            <div class="loading-track" aria-hidden="true">
+              <div id="loading-bar" class="loading-bar"></div>
+            </div>
+          </div>
           <label class="slider-label" for="step-slider">Step</label>
           <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
           <div class="step-meta">
@@ -87,22 +96,34 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Right Panel</p>
-              <h2>3D Snapshot</h2>
+              <h2>Train And Test Snapshot</h2>
             </div>
             <p class="muted">
-              The main chart shows a prediction surface with sampled target
-              points in the same 3D space. The side panel keeps a flat error
-              view for fine-grained inspection.
+              The main area uses a 1:1:1 layout: train 3D on the left, test 3D
+              in the middle, and stacked train/test error maps on the right.
             </p>
           </div>
           <div class="heatmap-grid">
             <article class="heatmap-card">
-              <div class="heatmap-header">Prediction Surface + Target Points</div>
-              <div id="overlay-plot" class="plot-surface plot-surface-hero"></div>
+              <div class="heatmap-header">Train Surface + Train Samples</div>
+              <div id="train-overlay-plot" class="plot-surface plot-surface-hero"></div>
             </article>
             <article class="heatmap-card">
-              <div class="heatmap-header">Absolute Error</div>
-              <div id="error-plot" class="plot-surface"></div>
+              <div class="heatmap-header">Test Surface + Test Samples</div>
+              <div id="test-overlay-plot" class="plot-surface plot-surface-hero"></div>
+            </article>
+            <article class="heatmap-card error-column-card">
+              <div class="heatmap-header">Error Maps</div>
+              <div class="error-column">
+                <div class="error-panel">
+                  <div class="error-panel-title">Train Absolute Error</div>
+                  <div id="train-error-plot" class="plot-surface plot-surface-tall"></div>
+                </div>
+                <div class="error-panel">
+                  <div class="error-panel-title">Test Absolute Error</div>
+                  <div id="test-error-plot" class="plot-surface plot-surface-tall"></div>
+                </div>
+              </div>
             </article>
           </div>
         </section>

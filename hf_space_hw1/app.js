@@ -17,16 +17,25 @@ const overviewImage = document.getElementById("overview-image");
 const circuitImage = document.getElementById("circuit-image");
 const timelineCaption = document.getElementById("timeline-caption");
 const chartEmpty = document.getElementById("chart-empty");
+const loadingPanel = document.getElementById("loading-panel");
+const loadingLabel = document.getElementById("loading-label");
+const loadingPercent = document.getElementById("loading-percent");
+const loadingBar = document.getElementById("loading-bar");
 
-const overlayPlot =
-  document.getElementById("overlay-plot") ||
-  document.getElementById("prediction-plot");
-const errorPlot = document.getElementById("error-plot");
+const trainOverlayPlot = document.getElementById("train-overlay-plot");
+const testOverlayPlot = document.getElementById("test-overlay-plot");
+const trainErrorPlot = document.getElementById("train-error-plot");
+const testErrorPlot = document.getElementById("test-error-plot");
 const lossChart = document.getElementById("loss-chart");
 
 let currentManifest = null;
 let currentData = null;
-let overlayCameraState = null;
+const overlayCameraStates = {
+  train: null,
+  test: null,
+};
+let cameraSyncLocked = false;
+let activeLoadToken = 0;
 
 const defaultOverlayCamera = {
   eye: { x: 1.5, y: 1.3, z: 0.95 },
@@ -42,29 +51,42 @@ function appendMetaRow(label, value) {
   experimentMeta.appendChild(wrapper);
 }
 
-function linspace(start, stop, count) {
-  if (count === 1) {
-    return [start];
+function setLoadingState({ visible, label, percent, status }) {
+  if (loadingPanel) {
+    loadingPanel.hidden = !visible;
   }
-  const step = (stop - start) / (count - 1);
-  return Array.from({ length: count }, (_, index) => start + index * step);
+  if (loadingLabel && label) {
+    loadingLabel.textContent = label;
+  }
+  if (typeof percent === "number") {
+    const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+    if (loadingPercent) {
+      loadingPercent.textContent = `${clamped}%`;
+    }
+    if (loadingBar) {
+      loadingBar.style.width = `${clamped}%`;
+    }
+  }
+  if (status) {
+    exportStatus.textContent = status;
+  }
 }
 
-function makeAxisLayout(title) {
+function makeAxisLayout(title, xRange, yRange) {
   return {
-    title: { text: title, x: 0.03, xanchor: "left" },
+    title: title ? { text: title, x: 0.03, xanchor: "left" } : undefined,
     margin: { l: 48, r: 16, t: 46, b: 42 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "#ffffff",
     xaxis: {
       title: "x1",
-      range: [0.5, 1.0],
+      range: xRange,
       gridcolor: "rgba(23,33,29,0.08)",
       zeroline: false,
     },
     yaxis: {
       title: "x2",
-      range: [0.5, 1.0],
+      range: yRange,
       gridcolor: "rgba(23,33,29,0.08)",
       zeroline: false,
       scaleanchor: "x",
@@ -77,6 +99,7 @@ function renderHeatmapPlot(element, spec) {
   if (!element) {
     return;
   }
+
   Plotly.react(
     element,
     [
@@ -85,27 +108,32 @@ function renderHeatmapPlot(element, spec) {
         x: spec.x,
         y: spec.y,
         z: spec.z,
-        colorscale: spec.colorscale || "Viridis",
+        colorscale: spec.colorscale || "Magma",
         zsmooth: false,
-        hovertemplate: "x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
+        hovertemplate:
+          "x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
         colorbar: {
           thickness: 10,
-          len: 0.8,
+          len: 0.78,
         },
       },
     ],
-    makeAxisLayout(spec.title),
+    makeAxisLayout(
+      spec.showTitle === false ? null : spec.title,
+      [Math.min(...spec.x), Math.max(...spec.x)],
+      [Math.min(...spec.y), Math.max(...spec.y)]
+    ),
     { displayModeBar: false, responsive: true }
   );
 }
 
-function getTestPoints(data, fallbackGrid) {
-  const testSamples = data.samples?.test;
-  if (testSamples?.x1?.length && testSamples?.x2?.length && testSamples?.y?.length) {
+function getDomainPoints(data, domain, fallbackGrid) {
+  const domainSamples = data.samples?.[domain];
+  if (domainSamples?.x1?.length && domainSamples?.x2?.length && domainSamples?.y?.length) {
     return {
-      x: testSamples.x1,
-      y: testSamples.x2,
-      z: testSamples.y,
+      x: domainSamples.x1,
+      y: domainSamples.x2,
+      z: domainSamples.y,
     };
   }
 
@@ -121,6 +149,7 @@ function getTestPoints(data, fallbackGrid) {
   const xs = [];
   const ys = [];
   const zs = [];
+
   for (let rowIndex = 0; rowIndex < y.length; rowIndex += stride) {
     for (let colIndex = 0; colIndex < x.length; colIndex += stride) {
       xs.push(x[colIndex]);
@@ -128,14 +157,11 @@ function getTestPoints(data, fallbackGrid) {
       zs.push(z[rowIndex][colIndex]);
     }
   }
+
   return { x: xs, y: ys, z: zs };
 }
 
-function flattenGridValues(grid) {
-  return (grid.z || []).flatMap((row) => row);
-}
-
-function makeSurfaceLayout(title) {
+function makeSurfaceLayout(title, domainKey, xRange, yRange) {
   return {
     title: { text: title, x: 0.03, xanchor: "left" },
     margin: { l: 0, r: 0, t: 46, b: 0 },
@@ -144,13 +170,13 @@ function makeSurfaceLayout(title) {
       bgcolor: "rgba(0,0,0,0)",
       xaxis: {
         title: "x1",
-        range: [0.5, 1.0],
+        range: xRange,
         gridcolor: "rgba(23,33,29,0.10)",
         zeroline: false,
       },
       yaxis: {
         title: "x2",
-        range: [0.5, 1.0],
+        range: yRange,
         gridcolor: "rgba(23,33,29,0.10)",
         zeroline: false,
       },
@@ -160,39 +186,65 @@ function makeSurfaceLayout(title) {
         gridcolor: "rgba(23,33,29,0.10)",
         zeroline: false,
       },
-      camera: overlayCameraState || defaultOverlayCamera,
+      camera: overlayCameraStates[domainKey] || defaultOverlayCamera,
       aspectratio: { x: 1.15, y: 1.15, z: 0.7 },
     },
-    uirevision: "overlay-camera",
+    uirevision: `overlay-camera-${domainKey}`,
   };
 }
 
-function bindOverlayCameraTracking(element) {
-  if (!element || element.dataset.cameraBound === "true" || typeof element.on !== "function") {
+function bindOverlayCameraTracking(element, domainKey) {
+  if (
+    !element ||
+    element.dataset.cameraBound === "true" ||
+    typeof element.on !== "function"
+  ) {
     return;
   }
 
   element.on("plotly_relayout", (eventData) => {
-    if (eventData?.["scene.camera"]) {
-      overlayCameraState = eventData["scene.camera"];
+    if (cameraSyncLocked) {
       return;
     }
 
-    const liveCamera =
-      element.layout?.scene?.camera || element._fullLayout?.scene?.camera;
-    if (liveCamera) {
-      overlayCameraState = liveCamera;
+    let nextCamera = null;
+    if (eventData?.["scene.camera"]) {
+      nextCamera = eventData["scene.camera"];
     }
+    if (!nextCamera) {
+      const liveCamera = element.layout?.scene?.camera || element._fullLayout?.scene?.camera;
+      if (liveCamera) {
+        nextCamera = liveCamera;
+      }
+    }
+    if (!nextCamera) {
+      return;
+    }
+
+    overlayCameraStates.train = nextCamera;
+    overlayCameraStates.test = nextCamera;
+
+    const siblingElement = domainKey === "train" ? testOverlayPlot : trainOverlayPlot;
+    if (siblingElement) {
+      cameraSyncLocked = true;
+      Plotly.relayout(siblingElement, { "scene.camera": nextCamera })
+        .catch(() => {})
+        .finally(() => {
+          cameraSyncLocked = false;
+        });
+      return;
+    }
+
+    cameraSyncLocked = false;
   });
 
   element.dataset.cameraBound = "true";
 }
 
-function renderOverlayPlot(element, predictionGrid, targetGrid) {
+function renderOverlayPlot(element, domainKey, predictionGrid, domainPoints, title) {
   if (!element) {
     return;
   }
-  const sampledTarget = getTestPoints(currentData || {}, targetGrid);
 
   Plotly.react(
     element,
@@ -219,30 +271,36 @@ function renderOverlayPlot(element, predictionGrid, targetGrid) {
       {
         type: "scatter3d",
         mode: "markers",
-        x: sampledTarget.x,
-        y: sampledTarget.y,
-        z: sampledTarget.z,
-        name: "Test targets",
+        x: domainPoints.x,
+        y: domainPoints.y,
+        z: domainPoints.z,
+        name: `${domainKey} targets`,
         marker: {
-          size: 2.2,
-          color: "rgba(239,131,84,0.92)",
+          size: 2.1,
+          color: domainKey === "train" ? "rgba(13,143,113,0.88)" : "rgba(239,131,84,0.92)",
           opacity: 0.82,
-          line: { width: 0.4, color: "rgba(255,255,255,0.55)" },
+          line: { width: 0.35, color: "rgba(255,255,255,0.5)" },
         },
         hovertemplate:
-          "Test target<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>",
+          `${domainKey} sample<br>x1=%{x:.3f}<br>x2=%{y:.3f}<br>value=%{z:.6f}<extra></extra>`,
       },
     ],
-    makeSurfaceLayout("Prediction surface vs test targets"),
+    makeSurfaceLayout(
+      title,
+      domainKey,
+      [Math.min(...predictionGrid.x), Math.max(...predictionGrid.x)],
+      [Math.min(...predictionGrid.y), Math.max(...predictionGrid.y)]
+    ),
     { displayModeBar: false, responsive: true }
   );
-  bindOverlayCameraTracking(element);
+  bindOverlayCameraTracking(element, domainKey);
 }
 
 function renderLossChart(steps, currentIndex) {
   if (!lossChart || !chartEmpty) {
     return;
   }
+
   if (!steps.length) {
     chartEmpty.hidden = false;
     chartEmpty.style.display = "flex";
@@ -338,69 +396,92 @@ function renderLossChart(steps, currentIndex) {
   );
 }
 
+function renderEmptyState() {
+  currentStepLabel.textContent = "Final snapshot";
+  playbackMode.textContent = "Static export";
+  timelineCaption.textContent = "Waiting for raw step grids.";
+
+  for (const [element, domainKey, title] of [
+    [trainOverlayPlot, "train", "Train surface vs train samples"],
+    [testOverlayPlot, "test", "Test surface vs test samples"],
+  ]) {
+    if (element) {
+      Plotly.react(element, [], makeSurfaceLayout(title, domainKey, [0, 1], [0, 1]), {
+        displayModeBar: false,
+        responsive: true,
+      });
+    }
+  }
+
+  for (const [element, title] of [
+    [trainErrorPlot, "Train Absolute Error"],
+    [testErrorPlot, "Test Absolute Error"],
+  ]) {
+    renderHeatmapPlot(element, {
+      title,
+      x: [0, 1],
+      y: [0, 1],
+      z: [
+        [0, 0],
+        [0, 0],
+      ],
+      colorscale: "Magma",
+      showTitle: false,
+    });
+  }
+
+  renderLossChart([], 0);
+}
+
 function refreshStepState(data, index) {
   const steps = data.timeline_steps || [];
-  const targetGrid = steps[0]?.heatmaps?.target || {
-    x: [],
-    y: [],
-    z: [],
-  };
-
   if (!steps.length) {
-    currentStepLabel.textContent = "Final snapshot";
-    playbackMode.textContent = "Static export";
-    timelineCaption.textContent = "Waiting for raw step grids.";
-    if (overlayPlot) {
-      Plotly.react(
-        overlayPlot,
-        [],
-        makeSurfaceLayout("Prediction surface vs test targets"),
-        {
-          displayModeBar: false,
-          responsive: true,
-        }
-      );
-    }
-    renderHeatmapPlot(errorPlot, {
-      title: "Absolute Error",
-      x: [],
-      y: [],
-      z: [],
-      colorscale: "Magma",
-    });
-    renderLossChart([], 0);
+    renderEmptyState();
     return;
   }
 
   const current = steps[index];
-  const currentTargetGrid = {
-    title: "Target",
-    x: current.heatmaps?.target?.x || targetGrid.x,
-    y: current.heatmaps?.target?.y || targetGrid.y,
-    z: current.heatmaps?.target?.z || targetGrid.z,
-  };
-  const currentPredictionGrid = {
-    title: "Prediction",
-    x: current.heatmaps?.prediction?.x || targetGrid.x,
-    y: current.heatmaps?.prediction?.y || targetGrid.y,
-    z: current.heatmaps?.prediction?.z || [],
-  };
+  const trainHeatmaps = current.heatmaps?.train;
+  const testHeatmaps = current.heatmaps?.test;
+  const trainPredictionGrid = trainHeatmaps?.prediction;
+  const testPredictionGrid = testHeatmaps?.prediction;
+  const trainTargetGrid = trainHeatmaps?.target;
+  const testTargetGrid = testHeatmaps?.target;
 
   currentStepLabel.textContent = current.label || `Step ${index + 1}`;
   playbackMode.textContent = "Trajectory replay";
-  if (current.batch_loss !== undefined) {
-    timelineCaption.textContent = `Batch loss ${current.batch_loss.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
-  } else {
-    timelineCaption.textContent = `Train MSE ${current.train_mse.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
-  }
+  timelineCaption.textContent =
+    `Train MSE ${current.train_mse.toFixed(6)} | Test MSE ${current.test_mse.toFixed(6)}`;
 
-  renderOverlayPlot(overlayPlot, currentPredictionGrid, currentTargetGrid);
-  renderHeatmapPlot(errorPlot, {
-    title: "Absolute Error",
-    x: current.heatmaps?.error?.x || targetGrid.x,
-    y: current.heatmaps?.error?.y || targetGrid.y,
-    z: current.heatmaps?.error?.z,
+  renderOverlayPlot(
+    trainOverlayPlot,
+    "train",
+    trainPredictionGrid,
+    getDomainPoints(data, "train", trainTargetGrid),
+    "Train surface vs train samples"
+  );
+  renderOverlayPlot(
+    testOverlayPlot,
+    "test",
+    testPredictionGrid,
+    getDomainPoints(data, "test", testTargetGrid),
+    "Test surface vs test samples"
+  );
+  renderHeatmapPlot(trainErrorPlot, {
+    title: "Train Absolute Error",
+    x: trainHeatmaps.error.x,
+    y: trainHeatmaps.error.y,
+    z: trainHeatmaps.error.z,
     colorscale: "Magma",
+    showTitle: false,
+  });
+  renderHeatmapPlot(testErrorPlot, {
+    title: "Test Absolute Error",
+    x: testHeatmaps.error.x,
+    y: testHeatmaps.error.y,
+    z: testHeatmaps.error.z,
+    colorscale: "Magma",
+    showTitle: false,
   });
   renderLossChart(steps, index);
 }
@@ -413,32 +494,103 @@ function populateExperimentMeta(data, selectedRun) {
   appendMetaRow("Test domain", data.experiment.test_domain);
   appendMetaRow("Device", data.experiment.device);
   if (selectedRun?.num_qubits !== undefined) {
-    appendMetaRow("Hyperparams", `q=${selectedRun.num_qubits}, layers=${selectedRun.num_layers}, lr=${selectedRun.learning_rate}, batch=${selectedRun.batch_size}, epochs=${selectedRun.epochs}`);
+    appendMetaRow(
+      "Hyperparams",
+      `q=${selectedRun.num_qubits}, layers=${selectedRun.num_layers}, lr=${selectedRun.learning_rate}, batch=${selectedRun.batch_size}, epochs=${selectedRun.epochs}`
+    );
   }
   appendMetaRow("Note", data.experiment.note);
 }
 
 async function loadManifest() {
   for (const url of manifestUrls) {
+    setLoadingState({
+      visible: true,
+      label: `Loading manifest from ${url.replace("./", "")}`,
+      percent: 8,
+      status: "loading",
+    });
     const response = await fetch(url);
     if (response.ok) {
-      return response.json();
+      const data = await response.json();
+      setLoadingState({
+        visible: true,
+        label: "Manifest ready",
+        percent: 18,
+        status: "loading",
+      });
+      return data;
     }
   }
   throw new Error("No viewer manifest available.");
 }
 
-async function loadRunData(path) {
+async function loadRunData(path, loadToken) {
   const response = await fetch(path);
   if (!response.ok) {
     throw new Error(`Failed to load run data: ${path}`);
   }
-  return response.json();
+  const contentLength = Number(response.headers.get("content-length") || 0);
+
+  if (!response.body || !contentLength) {
+    setLoadingState({
+      visible: true,
+      label: `Loading ${path.replace("./runtime/", "")}`,
+      percent: 45,
+      status: "loading",
+    });
+    return response.json();
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    if (loadToken !== activeLoadToken) {
+      throw new Error("Stale run load aborted.");
+    }
+    received += value.byteLength;
+    text += decoder.decode(value, { stream: true });
+    const progress = 20 + (received / contentLength) * 55;
+    setLoadingState({
+      visible: true,
+      label: `Downloading ${path.replace("./runtime/", "")}`,
+      percent: progress,
+      status: "loading",
+    });
+  }
+
+  text += decoder.decode();
+  return JSON.parse(text);
 }
 
 async function applyRun(runId) {
-  const selectedRun = currentManifest.runs.find((run) => run.id === runId) || currentManifest.runs[0];
-  currentData = await loadRunData(selectedRun.path);
+  const loadToken = ++activeLoadToken;
+  const selectedRun =
+    currentManifest.runs.find((run) => run.id === runId) || currentManifest.runs[0];
+  setLoadingState({
+    visible: true,
+    label: `Preparing ${selectedRun.label}`,
+    percent: 20,
+    status: "loading",
+  });
+  currentData = await loadRunData(selectedRun.path, loadToken);
+  if (loadToken !== activeLoadToken) {
+    return;
+  }
+
+  setLoadingState({
+    visible: true,
+    label: `Rendering ${selectedRun.label}`,
+    percent: 82,
+    status: "rendering",
+  });
 
   pageTitle.textContent = currentData.title;
   pageSubtitle.textContent = currentData.subtitle;
@@ -463,9 +615,21 @@ async function applyRun(runId) {
   }
 
   refreshStepState(currentData, 0);
+  setLoadingState({
+    visible: false,
+    label: "Viewer ready",
+    percent: 100,
+    status: "ready",
+  });
 }
 
 async function main() {
+  setLoadingState({
+    visible: true,
+    label: "Booting viewer",
+    percent: 2,
+    status: "loading",
+  });
   currentManifest = await loadManifest();
 
   const runs = currentManifest.runs || [];
@@ -503,4 +667,10 @@ main().catch((error) => {
   chartEmpty.textContent = "The static viewer failed to load its export data.";
   chartEmpty.hidden = false;
   chartEmpty.style.display = "flex";
+  setLoadingState({
+    visible: true,
+    label: "Load failed",
+    percent: 100,
+    status: "error",
+  });
 });
