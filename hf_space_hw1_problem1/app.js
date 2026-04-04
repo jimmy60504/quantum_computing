@@ -855,7 +855,9 @@ async function applyRun(runId) {
   exportStatus.textContent = currentData.status;
   runNote.textContent = `Loaded ${selectedRun.label} with ${selectedRun.steps} exported steps.`;
   renderResultsTable(currentManifest.runs || [], selectedRun.id);
-  overviewImage.src = currentData.assets.data_overview;
+  if (overviewImage) {
+    overviewImage.src = currentData.assets.data_overview;
+  }
   circuitImage.src = currentData.assets.circuit;
   if (fourierImage) {
     fourierImage.src = `./runtime/${selectedRun.id}_fourier_spectrum.png`;

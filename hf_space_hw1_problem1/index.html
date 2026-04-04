@@ -47,38 +47,6 @@
           <p id="page-subtitle" class="muted">
             Loading experiment summary...
           </p>
-          <details class="hero-reference">
-            <summary>Reference</summary>
-            <div class="reference-stack hero-reference-stack">
-              <figure class="reference-figure">
-                <img
-                  id="overview-image"
-                  class="previewable-image"
-                  alt="Data overview"
-                  data-preview-caption="Train/test split overview"
-                />
-                <figcaption>Train/test split overview</figcaption>
-              </figure>
-              <figure class="reference-figure">
-                <img
-                  id="circuit-image"
-                  class="previewable-image"
-                  alt="Circuit diagram"
-                  data-preview-caption="Current circuit diagram"
-                />
-                <figcaption>Current circuit diagram</figcaption>
-              </figure>
-              <figure class="reference-figure">
-                <img
-                  id="fourier-image"
-                  class="previewable-image"
-                  alt="Fourier spectrum"
-                  data-preview-caption="Current Fourier spectrum"
-                />
-                <figcaption>Current Fourier spectrum</figcaption>
-              </figure>
-            </div>
-          </details>
         </div>
 
         <div class="panel-card">
@@ -120,7 +88,29 @@
           <div class="panel-header">
             <h2>Experiment</h2>
           </div>
-          <dl id="experiment-meta" class="meta-list experiment-scroll"></dl>
+          <div class="experiment-scroll">
+            <div class="reference-stack experiment-reference-stack">
+              <figure class="reference-figure">
+                <img
+                  id="circuit-image"
+                  class="previewable-image"
+                  alt="Circuit diagram"
+                  data-preview-caption="Current circuit diagram"
+                />
+                <figcaption>Current circuit diagram</figcaption>
+              </figure>
+              <figure class="reference-figure">
+                <img
+                  id="fourier-image"
+                  class="previewable-image"
+                  alt="Fourier spectrum"
+                  data-preview-caption="Current Fourier spectrum"
+                />
+                <figcaption>Current Fourier spectrum</figcaption>
+              </figure>
+            </div>
+            <dl id="experiment-meta" class="meta-list"></dl>
+          </div>
         </div>
 
       </aside>

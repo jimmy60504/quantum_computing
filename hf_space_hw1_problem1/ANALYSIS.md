@@ -2,9 +2,17 @@
 
 這個頁面整理了 Problem 1 的主要結果、訓練過程和幾張輔助圖，方便把不同設定放在同一個地方看。
 
+## 題目背景
+
+這一題要做的是回歸 `f(x1, x2) = sin(exp(x1) + x2)`，但資料不是從整個平面隨機抽，而是刻意把 train domain 放在 `[0.0, 0.5] x [0.0, 0.5]`，test domain 放在 `[0.5, 1.0] x [0.5, 1.0]`。也就是說，模型只能先在左下角看到一小塊區域，接著再拿去推右上角那塊沒有直接看過的區域，所以這題本身就帶有很明顯的 extrapolation 性質。
+
+![Train/test split overview](./assets/problem1_data_overview.png)
+
+左半邊是整個 target function 的熱度分布，右半邊把 train samples 和 test samples 分開標出來，所以可以很直觀看到 train 和 test 是怎麼被切開的，也更容易把這個 split 和後面看到的泛化表現連起來看。
+
 ## 先看這個頁面有什麼
 
-左邊的 `Results` 會列出每一組設定的 train / test MSE，現在主要用來比較不同 qubits 和 layers 的表現。中間上方的兩張 3D 圖分別是 train domain 和 test domain 的預測曲面，右邊是對應的 error map。最下面的 loss 圖可以配合 slider 看每一個 step 的變化。左上角收起來的 `Reference` 則放了 train/test split、目前的電路圖，以及 Fourier spectrum。
+左邊的 `Results` 會列出每一組設定的 train / test MSE，現在主要用來比較不同 qubits 和 layers 的表現。中間上方的兩張 3D 圖分別是 train domain 和 test domain 的預測曲面，右邊是對應的 error map。最下面的 loss 圖可以配合 slider 看每一個 step 的變化。左側 `Experiment` 卡片的上方則放了目前的電路圖，以及 Fourier spectrum。
 
 如果只是第一次進來，最簡單的看法是：
 
