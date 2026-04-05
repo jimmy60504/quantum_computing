@@ -26,12 +26,40 @@ except ImportError:  # pragma: no cover - direct script execution on gx10
 
 TRAIN_RANGES = np.array([0.0, 0.5] * 2).reshape(2, 2)
 TEST_RANGES = np.array([0.5, 1.0] * 2).reshape(2, 2)
+ENCODING_CHOICES = ("raw", "poly", "exp")
+
+
+def encoded_feature_dim(encoding_mode: str) -> int:
+    if encoding_mode == "raw":
+        return 2
+    if encoding_mode == "poly":
+        return 5
+    if encoding_mode == "exp":
+        return 2
+    raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
+
+
+def encode_features(x: torch.Tensor, encoding_mode: str) -> torch.Tensor:
+    x1 = x[:, 0:1]
+    x2 = x[:, 1:2]
+
+    if encoding_mode == "raw":
+        return x
+
+    if encoding_mode == "poly":
+        return torch.cat([x1, x2, x1.square(), x1 * x2, x2.square()], dim=1)
+
+    if encoding_mode == "exp":
+        return torch.cat([torch.exp(x1), x2], dim=1)
+
+    raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
 
 
 @dataclass
 class Config:
     num_qubits: int = 2
     num_layers: int = 3
+    encoding_mode: str = "raw"
     batch_size: int = 64
     epochs: int = 5
     learning_rate: float = 0.03
@@ -65,6 +93,7 @@ class DataReuploadingRegressor(nn.Module):
         self,
         num_qubits: int,
         num_layers: int,
+        encoding_mode: str = "raw",
         hidden_scale: float = 1.0,
         device_name: str = "lightning.qubit",
         diff_method: str = "adjoint",
@@ -72,10 +101,11 @@ class DataReuploadingRegressor(nn.Module):
         super().__init__()
         self.num_qubits = num_qubits
         self.num_layers = num_layers
+        self.encoding_mode = encoding_mode
         self.device_name = device_name
         self.diff_method = diff_method
 
-        self.input_projection = nn.Linear(2, num_qubits)
+        self.input_projection = nn.Linear(encoded_feature_dim(encoding_mode), num_qubits)
         self.output_head = nn.Linear(num_qubits, 1)
         self.feature_scale = nn.Parameter(torch.full((num_qubits,), hidden_scale))
         self.weights = nn.Parameter(0.05 * torch.randn(num_layers, num_qubits, 3))
@@ -103,7 +133,8 @@ class DataReuploadingRegressor(nn.Module):
         self.circuit = circuit
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        encoded = torch.tanh(self.input_projection(x)) * self.feature_scale
+        lifted_features = encode_features(x, self.encoding_mode)
+        encoded = torch.tanh(self.input_projection(lifted_features)) * self.feature_scale
         circuit_outputs = [torch.stack(self.circuit(sample, self.weights)) for sample in encoded]
         q_features = torch.stack(circuit_outputs).to(x.dtype)
         return self.output_head(q_features)
@@ -149,7 +180,7 @@ def make_default_export_stem(config: Config) -> str:
 
     return slugify(
         (
-            f"q{config.num_qubits}-l{config.num_layers}-"
+            f"{config.encoding_mode}-q{config.num_qubits}-l{config.num_layers}-"
             f"{config.device_name}-{config.diff_method}-"
             f"lr{config.learning_rate}-b{config.batch_size}-e{config.epochs}"
         )
@@ -267,7 +298,8 @@ def serialize_dataset_points(dataset: TensorDataset) -> dict[str, list[float]]:
 def make_circuit_diagram(
     model: DataReuploadingRegressor, sample: torch.Tensor, output_path: Path
 ) -> Path:
-    encoded = torch.tanh(model.input_projection(sample.unsqueeze(0))).squeeze(0) * model.feature_scale
+    lifted_sample = encode_features(sample.unsqueeze(0), model.encoding_mode)
+    encoded = torch.tanh(model.input_projection(lifted_sample)).squeeze(0) * model.feature_scale
     fig, _ = qml.draw_mpl(model.circuit)(
         encoded.detach().cpu().numpy(),
         model.weights.detach().cpu().numpy(),
@@ -297,6 +329,7 @@ def write_viewer_export(
         "experiment": {
             "model": "PennyLane data reuploading regressor",
             "task": "Regression on f(x1, x2) = sin(exp(x1) + x2)",
+            "encoding": config.encoding_mode,
             "train_domain": "[0.0, 0.5] x [0.0, 0.5]",
             "test_domain": "[0.5, 1.0] x [0.5, 1.0]",
             "device": f"{config.device_name} + {config.diff_method}",
@@ -349,6 +382,7 @@ def update_viewer_manifest(
         "diff_method": config.diff_method,
         "num_qubits": config.num_qubits,
         "num_layers": config.num_layers,
+        "encoding_mode": config.encoding_mode,
         "learning_rate": config.learning_rate,
         "batch_size": config.batch_size,
         "epochs": config.epochs,
@@ -391,6 +425,7 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
     model = DataReuploadingRegressor(
         num_qubits=int(config_dict["num_qubits"]),
         num_layers=int(config_dict["num_layers"]),
+        encoding_mode=str(config_dict["encoding_mode"]),
         hidden_scale=float(config_dict["hidden_scale"]),
         device_name=str(config_dict["device_name"]),
         diff_method=str(config_dict["diff_method"]),
@@ -423,6 +458,7 @@ def render_timeline_snapshots_parallel(
     config_dict = {
         "num_qubits": config.num_qubits,
         "num_layers": config.num_layers,
+        "encoding_mode": config.encoding_mode,
         "hidden_scale": config.hidden_scale,
         "device_name": config.device_name,
         "diff_method": config.diff_method,
@@ -474,6 +510,7 @@ def train(config: Config, num_samples: int) -> None:
     model = DataReuploadingRegressor(
         num_qubits=config.num_qubits,
         num_layers=config.num_layers,
+        encoding_mode=config.encoding_mode,
         hidden_scale=config.hidden_scale,
         device_name=config.device_name,
         diff_method=config.diff_method or resolve_diff_method(config.device_name, None),
@@ -491,7 +528,8 @@ def train(config: Config, num_samples: int) -> None:
     print("QCAA HW1 Problem 1 - data reuploading baseline")
     print(
         f"seed={SEED} samples={num_samples} qubits={config.num_qubits} "
-        f"layers={config.num_layers} batch_size={config.batch_size} "
+        f"layers={config.num_layers} encoding={config.encoding_mode} "
+        f"batch_size={config.batch_size} "
         f"epochs={config.epochs} lr={config.learning_rate}"
     , flush=True)
     print(f"device={config.device_name} diff_method={config.diff_method}", flush=True)
@@ -509,6 +547,7 @@ def train(config: Config, num_samples: int) -> None:
                 "num_samples": num_samples,
                 "num_qubits": config.num_qubits,
                 "num_layers": config.num_layers,
+                "encoding_mode": config.encoding_mode,
                 "batch_size": config.batch_size,
                 "epochs": config.epochs,
                 "learning_rate": config.learning_rate,
@@ -682,6 +721,13 @@ def parse_args() -> tuple[Config, int]:
     parser = argparse.ArgumentParser()
     parser.add_argument("--num-qubits", type=int, default=2)
     parser.add_argument("--num-layers", type=int, default=3)
+    parser.add_argument(
+        "--encoding",
+        type=str,
+        default="raw",
+        choices=ENCODING_CHOICES,
+        help="Classical feature lift before the quantum data reuploading circuit.",
+    )
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--learning-rate", type=float, default=0.03)
@@ -713,6 +759,7 @@ def parse_args() -> tuple[Config, int]:
     config = Config(
         num_qubits=args.num_qubits,
         num_layers=args.num_layers,
+        encoding_mode=args.encoding,
         batch_size=args.batch_size,
         epochs=args.epochs,
         learning_rate=args.learning_rate,

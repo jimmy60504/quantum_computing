@@ -3,6 +3,11 @@ import {
     exportStatus, manifestUrls, state,
 } from "./dom.js";
 
+export function withCacheBust(path) {
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}t=${Date.now()}`;
+}
+
 export function formatMetric(value) {
     if (value === undefined || value === null || Number.isNaN(Number(value))) {
         return "—";
@@ -61,7 +66,7 @@ export async function loadManifest() {
             percent: 8,
             status: "loading",
         });
-        const response = await fetch(url);
+        const response = await fetch(withCacheBust(url), { cache: "no-store" });
         if (response.ok) {
             const data = await response.json();
             setLoadingState({
@@ -77,7 +82,7 @@ export async function loadManifest() {
 }
 
 export async function loadRunData(path, loadToken) {
-    const response = await fetch(path);
+    const response = await fetch(withCacheBust(path), { cache: "no-store" });
     if (!response.ok) {
         throw new Error(`Failed to load run data: ${path}`);
     }

@@ -14,9 +14,13 @@ import {
     renderEmptyState, getDomainPoints,
 } from "./charts.js";
 import {
-    formatMetric, formatInteger, appendMetaRow,
+    formatMetric, formatInteger, appendMetaRow, withCacheBust,
     setLoadingState, loadManifest, loadRunData,
 } from "./data.js";
+
+function getRunEncoding(run, data) {
+    return run?.encoding_mode ?? run?.encoding ?? data?.experiment?.encoding ?? null;
+}
 
 function renderResultsTable(runs, selectedRunId) {
     if (!resultsTableBody) {
@@ -41,6 +45,7 @@ function renderResultsTable(runs, selectedRunId) {
                 className: "metric-cell",
             },
             { text: run.label || run.id, className: "run-cell" },
+            { text: getRunEncoding(run) || "—" },
             { text: formatInteger(run.num_qubits) },
             { text: formatInteger(run.num_layers) },
         ];
@@ -135,8 +140,9 @@ function populateExperimentMeta(data, selectedRun) {
         appendMetaRow("Qubits", selectedRun.num_qubits);
         appendMetaRow("Layers", selectedRun.num_layers);
     }
-    if (selectedRun?.encoding !== undefined) {
-        appendMetaRow("Encoding", selectedRun.encoding || "—");
+    const encoding = getRunEncoding(selectedRun, data);
+    if (encoding !== null) {
+        appendMetaRow("Encoding", encoding || "—");
     }
     if (selectedRun?.trainable_parameters !== undefined) {
         appendMetaRow("Parameters", formatInteger(selectedRun.trainable_parameters));
@@ -202,11 +208,11 @@ async function applyRun(runId) {
     runNote.textContent = `Loaded ${selectedRun.label} with ${selectedRun.steps} exported steps.`;
     renderResultsTable(state.currentManifest.runs || [], selectedRun.id);
     if (overviewImage) {
-        overviewImage.src = state.currentData.assets.data_overview;
+        overviewImage.src = withCacheBust(state.currentData.assets.data_overview);
     }
-    circuitImage.src = state.currentData.assets.circuit;
+    circuitImage.src = withCacheBust(state.currentData.assets.circuit);
     if (fourierImage) {
-        fourierImage.src = `./runtime/${selectedRun.id}_fourier_spectrum.png`;
+        fourierImage.src = withCacheBust(`./runtime/${selectedRun.id}_fourier_spectrum.png`);
     }
     populateExperimentMeta(state.currentData, selectedRun);
 

@@ -218,6 +218,26 @@ You can switch PennyLane simulator and differentiation mode from the CLI:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
+  --device default.qubit \
+  --diff-method backprop
+```
+
+You can also compare encoding choices at fixed `q=2`, `l=2`:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_hw1_sweep_encodings_q2l2.sh
+```
+
+Or run one encoding explicitly:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
+  --encoding exp \
+  --num-qubits 2 \
+  --num-layers 2
+```
 
 ## Scaffold HW1 Problem 2
 
@@ -239,9 +259,6 @@ Run the scaffold preview locally:
 ```bash
 conda activate quantum-computing
 python -m HW1.problem2.scaffold --preview-datasets --write-plan
-```
-  --device default.qubit \
-  --diff-method backprop
 ```
 
 Or try the current faster-to-scale baseline:
