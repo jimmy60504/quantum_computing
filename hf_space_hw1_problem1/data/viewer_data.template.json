@@ -1,6 +1,6 @@
 {
-  "title": "QCAA HW1 Problem 1",
-  "subtitle": "Data reuploading regression viewer",
+  "title": "Data Reuploading Explorer",
+  "subtitle": "QCAA HW1 Problem 1 regression results",
   "status": "template export",
   "description": "The viewer first looks for a gx10-generated runtime export. If no runtime data exists, it falls back to this lightweight template.",
   "experiment": {

@@ -1,125 +1,139 @@
 # quantum_computing
 
-This repository is set up for local Qiskit development with Conda and remote
-GPU-oriented work with Docker on `gx10`.
+Local Qiskit and PennyLane experiments with a Conda workflow on macOS and a
+Docker-based execution workflow on `gx10`.
 
-## Environment
+## At a glance
 
-- Environment manager: Conda
-- Environment name: `quantum-computing`
-- Python version: `3.11`
-- Main packages: `qiskit==2.3.0`, `pennylane==0.44.1`, `torch`
+- Local source of truth: this repository on your Mac
+- Local environment manager: Conda
+- Conda environment: `quantum-computing`
+- Python: `3.11`
+- Core packages: `qiskit==2.3.0`, `pennylane==0.44.1`, `torch`
+- Remote experiment host: `gx10`
+- Remote execution model: Docker, with the repo synced from local source
+
+The intended workflow is:
+
+1. Edit code locally.
+2. Sync to `gx10` when you want to run heavier experiments.
+3. Treat `gx10` as an execution mirror for runs and generated artifacts.
+4. Keep code changes and commits anchored in the local repo.
+
+## Repository layout
+
+- `HW1/problem1/`: current regression experiments, training pipeline, render tools
+- `HW1/problem2/`: classification scaffold
+- `hf_space_hw1_problem1/`: static Hugging Face viewer scaffold
+- `scripts/`: sync, Docker-run wrappers, MLflow helpers, viewer helpers
+- `kb/`: lightweight research notes and templates
+- `hello_qiskit.py`, `pennylane_hello.py`, `qft_demo.py`: small local demos
+
+## Local setup
+
+Create the Conda environment:
+
+```bash
+conda env create -f environment.yml
+```
+
+Update an existing environment:
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+Activate it:
+
+```bash
+conda activate quantum-computing
+```
+
+Quick sanity checks:
+
+```bash
+python -c "import qiskit; print(qiskit.__version__)"
+python -c "import pennylane as qml; print(qml.__version__)"
+python -c "import torch; print(torch.__version__)"
+```
+
+## Local demos
+
+Qiskit hello world:
+
+```bash
+conda activate quantum-computing
+python hello_qiskit.py
+```
+
+PennyLane hello world:
+
+```bash
+conda activate quantum-computing
+python pennylane_hello.py
+```
+
+QFT demo:
+
+```bash
+conda activate quantum-computing
+python qft_demo.py
+```
+
+## `gx10` workflow
+
+Sync local code to the remote execution mirror:
+
+```bash
+./scripts/sync_to_gx10.sh
+```
+
+Then connect:
+
+```bash
+ssh gx10
+cd ~/quantum_computing
+```
+
+The sync helper intentionally excludes runtime-heavy outputs such as:
+
+- `mlruns`
+- `mlartifacts`
+- `mlflow.db`
+- `HW1/artifacts`
+- `hf_space_hw1_problem1/runtime`
+
+That keeps local source and remote experiment artifacts separate.
 
 ## Docker on `gx10`
 
-For the ARM64 NVIDIA `gx10` machine, prefer an `nvcr.io` base image instead of
-a generic Docker Hub Python image.
+For `gx10`, prefer the provided NVIDIA ARM64 Docker workflow over bare-host
+Python.
 
-The provided [Dockerfile](./Dockerfile) defaults to:
-
-- `nvcr.io/nvidia/pytorch:26.03-py3`
-
-As of `2026-04-02`, I verified on `gx10` that this `26.03` tag can be pulled
-from `nvcr.io`.
-
-Build:
+Build the main image:
 
 ```bash
 docker build -t quantum-gx10 .
 ```
 
-Build with a newer verified NVIDIA base:
+The default base image is:
+
+- `nvcr.io/nvidia/pytorch:26.03-py3`
+
+Run a Python file inside the repo-mounted container through the wrapper:
 
 ```bash
-docker build \
-  --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:26.03-py3 \
-  -t quantum-gx10 .
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py
 ```
 
-Run the smoke test:
+Useful wrapper notes:
 
-```bash
-docker run --rm --gpus all \
-  --ipc=host \
-  --ulimit memlock=-1 \
-  --ulimit stack=67108864 \
-  quantum-gx10
-```
+- heavy jobs default to CPU set `5-9,15-19` with `10` CPUs
+- you can override with `GX10_CPUSET` and `GX10_CPUS`
+- set `GX10_DOCKER_NETWORK` when the job needs to reach containerized services
+  such as MLflow
 
-Build the Qiskit Aer GPU image for `gx10`:
-
-```bash
-docker build -f Dockerfile.aer-gpu -t quantum-gx10:aer-gpu .
-```
-
-Run the Qiskit Aer GPU demo:
-
-```bash
-docker run --rm --gpus all \
-  --ipc=host \
-  --ulimit memlock=-1 \
-  --ulimit stack=67108864 \
-  quantum-gx10:aer-gpu \
-  python qiskit_aer_gpu_demo.py
-```
-
-Or run it on `gx10` through the wrapper:
-
-```bash
-ssh gx10
-cd ~/quantum_computing
-./scripts/gx10_aer_demo.sh
-```
-
-You can scale the demo circuit up when you want a heavier benchmark:
-
-```bash
-docker run --rm --gpus all \
-  --ipc=host \
-  --ulimit memlock=-1 \
-  --ulimit stack=67108864 \
-  -e AER_DEMO_QUBITS=24 \
-  -e AER_DEMO_LAYERS=4 \
-  quantum-gx10:aer-gpu \
-  python qiskit_aer_gpu_demo.py
-```
-
-Wrapper scripts are also available for common `gx10` tasks:
-
-```bash
-./scripts/sync_to_gx10.sh
-ssh gx10
-cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1/core/sample.py
-./scripts/gx10_run_py.sh pennylane_hello.py
-GX10_IMAGE=quantum-gx10:aer-gpu ./scripts/gx10_run_py.sh qiskit_aer_gpu_demo.py
-```
-
-On `gx10`, the wrappers now default to a big-core / small-core split:
-
-- heavy Python jobs via `gx10_run_py.sh` use CPU set `5-9,15-19` with `10` CPUs
-- background services such as `gx10_mlflow_ui.sh` use CPU set `0-4,10-14` with `4` CPUs
-- host-side viewer serving via `gx10_hf_viewer.sh` is pinned to the same small-core set
-
-You can override either wrapper at runtime with `GX10_CPUSET` and `GX10_CPUS`.
-If a `gx10` job needs to reach another containerized service such as MLflow,
-also set `GX10_DOCKER_NETWORK`.
-
-If you are working from your Mac and want to push the latest files to `gx10`:
-
-```bash
-./scripts/sync_to_gx10.sh
-```
-
-Then on `gx10`:
-
-```bash
-ssh gx10
-cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1/core/sample.py
-```
-
-Open a shell in the container with the repo mounted:
+Open a shell in the container if needed:
 
 ```bash
 docker run --rm -it --gpus all \
@@ -132,130 +146,47 @@ docker run --rm -it --gpus all \
   bash
 ```
 
-The first image includes:
+## Qiskit Aer GPU on `gx10`
 
-- `torch` from the NVIDIA base image
-- `qiskit==2.3.0`
-- `qiskit-machine-learning`
-- `pennylane`
-- `mlflow` plus the `psycopg` Postgres driver for remote tracking
-- the plotting and notebook-adjacent packages already used by this repository
+`qiskit-aer-gpu` is not available as a ready-made wheel on `gx10` because the
+host is `aarch64`. This repo therefore includes
+[`Dockerfile.aer-gpu`](./Dockerfile.aer-gpu), which builds Aer with CUDA
+support for that environment.
 
-Note:
-
-- the local Conda workflow still targets Python `3.11`
-- the current Docker image inherits Python `3.12` from NVIDIA's
-  `nvcr.io/nvidia/pytorch:26.03-py3` base
-
-## Qiskit Aer GPU note
-
-On `gx10`, `qiskit-aer-gpu` is not available as a ready-made wheel because the
-host is `aarch64`. The repository therefore includes
-[Dockerfile.aer-gpu](./Dockerfile.aer-gpu), which builds `qiskit-aer` from
-source with CUDA enabled and applies a small compatibility patch for the
-current CUDA 13.2 toolchain on `gx10`. The Docker build also pins
-`AER_CUDA_ARCH=8.6+PTX`, because GPU auto-detection is unavailable during
-`docker build` and the default Aer fallback arch list is not compatible with
-the CUDA 13.2 toolchain in the NVIDIA 26.03 base image.
-
-## Create or update the environment
+Build it:
 
 ```bash
-conda env create -f environment.yml
+docker build -f Dockerfile.aer-gpu -t quantum-gx10:aer-gpu .
 ```
 
-If the environment already exists:
+Run the demo:
 
 ```bash
-conda env update -f environment.yml --prune
+./scripts/gx10_aer_demo.sh
 ```
 
-## Activate
+Or directly:
 
 ```bash
-conda activate quantum-computing
+GX10_IMAGE=quantum-gx10:aer-gpu ./scripts/gx10_run_py.sh qiskit_aer_gpu_demo.py
 ```
 
-## Verify Qiskit
+## HW1 Problem 1
 
-```bash
-python -c "import qiskit; print(qiskit.__version__)"
-```
+The main active experiment lives in `HW1/problem1/`. It is a data reuploading
+regression setup with multiple classical encodings including `raw`, `poly`, and
+`exp`.
 
-## Verify PennyLane
+### One-off training run
 
-```bash
-python -c "import pennylane as qml; print(qml.__version__)"
-```
-
-## Verify Torch
-
-```bash
-python -c "import torch; print(torch.__version__)"
-```
-
-## Run the local hello example
-
-```bash
-conda activate quantum-computing
-python hello_qiskit.py
-```
-
-This example uses Qiskit's built-in `BasicSimulator`, so it runs locally on
-your machine and does not send jobs to IBM Quantum.
-
-## Run the PennyLane hello example
-
-```bash
-conda activate quantum-computing
-python pennylane_hello.py
-```
-
-This example trains a 1-qubit circuit with gradient descent until its output is
-close to the `|1>` state. It is meant to be the smallest useful PennyLane
-example in the repository: device, QNode, differentiable parameter, loss
-function, and optimizer are all present in one file.
-
-## Run HW1 Problem 1 baseline
-
-On `gx10`:
+Run a single training job on `gx10`:
 
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py
 ```
 
-This script now logs params, per-epoch MSE, and a loss-curve artifact to
-MLflow. For parallel runs on `gx10`, the recommended setup is a local
-Postgres-backed MLflow server:
-
-```bash
-cd ~/quantum_computing
-./scripts/gx10_mlflow_server.sh start
-```
-
-Then point training jobs at the server:
-
-```bash
-cd ~/quantum_computing
-GX10_DOCKER_NETWORK=gx10-mlflow \
-./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
-  --tracking-uri http://gx10-mlflow-server:5001
-```
-
-The sync helper excludes `mlflow.db`, `mlartifacts/`, and `HW1/artifacts/`
-because they are run outputs rather than source files.
-
-You can switch PennyLane simulator and differentiation mode from the CLI:
-
-```bash
-cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
-  --device default.qubit \
-  --diff-method backprop
-```
-
-You can run one encoding explicitly:
+Run a specific encoding:
 
 ```bash
 cd ~/quantum_computing
@@ -265,18 +196,58 @@ cd ~/quantum_computing
   --num-layers 2
 ```
 
-For slower ARM64 hosts such as `gx10`, the distributed renderer now avoids
-rebuilding the fixed dataset and target heatmaps for every snapshot, and Linux
-workers default to the lower-overhead `fork` multiprocessing start method. You
-can still override the worker pool behavior with:
+You can also switch backend and differentiation mode:
 
 ```bash
-PROB1_RENDER_MP_START=spawn PROB1_RENDER_CHUNKSIZE=1 \
-./scripts/gx10_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py --help
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
+  --device default.qubit \
+  --diff-method backprop
 ```
 
-If you want to keep every step while separating training from later evaluation,
-the Problem 1 training script also supports snapshot export mode:
+### MLflow
+
+Start the remote MLflow service on `gx10`:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_mlflow_server.sh start
+```
+
+Point training at that tracking server:
+
+```bash
+cd ~/quantum_computing
+GX10_DOCKER_NETWORK=gx10-mlflow \
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
+  --tracking-uri http://gx10-mlflow-server:5001
+```
+
+Open the UI:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_mlflow_ui.sh
+```
+
+Check server status or logs:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_mlflow_server.sh status
+./scripts/gx10_mlflow_server.sh logs
+```
+
+### Snapshot-first workflow
+
+For longer runs, the default pattern is:
+
+1. Train and save snapshots.
+2. Evaluate per-step metrics from snapshots.
+3. Render viewer exports from snapshots.
+4. Run Fourier analysis on the final viewer export.
+
+Train in snapshot-only mode:
 
 ```bash
 cd ~/quantum_computing
@@ -286,152 +257,122 @@ cd ~/quantum_computing
   --run-name raw-q2-l2-e20
 ```
 
-That mode now defers train/test MSE and heatmap generation to post-processing.
-You can first evaluate metrics-only chunks:
+Evaluate and merge metrics:
 
 ```bash
 cd ~/quantum_computing
-python3 HW1/problem1/tools/evaluate_snapshot_chunk.py \
+./scripts/gx10_run_py.sh HW1/problem1/tools/evaluate_snapshot_chunk.py \
   --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
 
-python3 HW1/problem1/tools/merge_evaluated_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+./scripts/gx10_run_py.sh HW1/problem1/tools/merge_evaluated_chunks.py \
+  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --require-complete
 ```
 
-Then render the full viewer export only for runs you want to keep:
+Render and merge viewer output:
 
 ```bash
 cd ~/quantum_computing
-python3 HW1/problem1/tools/render_snapshot_chunk.py \
+./scripts/gx10_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py \
   --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
 
-python3 HW1/problem1/tools/merge_rendered_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+./scripts/gx10_run_py.sh HW1/problem1/tools/merge_rendered_chunks.py \
+  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --require-complete
+```
 
-python3 HW1/problem1/tools/fourier_analysis.py \
+Run Fourier analysis:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1/tools/fourier_analysis.py \
   --viewer-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20.json
 ```
 
-See [kb/distributed_render_workflow.md](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/kb/distributed_render_workflow.md)
-for the snapshot-postprocess architecture note. The current default workflow is
-to keep both training and post-processing on `gx10` unless there is a specific
-need to fan work out to helper machines.
+### Full pipeline helper
 
-## Scaffold HW1 Problem 2
+For the standard multi-run workflow, use:
 
-The repository now includes a first-pass scaffold under
-[`HW1/problem2`](./HW1/problem2) for the three-method classification benchmark:
+```bash
+cd ~/quantum_computing
+./scripts/gx10_hw1_prob1_full_pipeline.sh
+```
+
+This runs the configured matrix in the script and produces:
+
+- snapshot exports
+- merged metrics exports
+- viewer exports
+- Fourier analysis outputs
+
+See [`kb/distributed_render_workflow.md`](./kb/distributed_render_workflow.md)
+for more detail on the snapshot-postprocess design.
+
+## HW1 Problem 2
+
+`HW1/problem2/` is a scaffold for a three-method classification benchmark:
 
 - explicit quantum model
 - implicit quantum kernel method
 - data reuploading circuit
 
-It includes:
-
-- dataset helpers for `circle` and `moons`
-- shared benchmark/result interfaces
-- a CLI that writes a dataset preview and a benchmark plan JSON
-
-Run the scaffold preview locally:
+Preview datasets and write the plan:
 
 ```bash
 conda activate quantum-computing
 python -m HW1.problem2.scaffold --preview-datasets --write-plan
 ```
 
-Or try the current faster-to-scale baseline:
+## Hugging Face viewer
 
-```bash
-cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
-  --device lightning.qubit \
-  --diff-method adjoint
-```
+The static viewer scaffold lives in
+[`hf_space_hw1_problem1/`](./hf_space_hw1_problem1).
 
-To inspect the runs on `gx10`:
+Recommended flow:
 
-```bash
-cd ~/quantum_computing
-./scripts/gx10_mlflow_ui.sh
-```
+1. Sync code to `gx10`.
+2. Run training and post-processing on `gx10`.
+3. Keep generated runtime files under `hf_space_hw1_problem1/runtime/` on `gx10`.
+4. Only prepare a publish bundle when you want to upload to Hugging Face.
 
-To check the Postgres-backed tracking service itself:
-
-```bash
-cd ~/quantum_computing
-./scripts/gx10_mlflow_server.sh status
-./scripts/gx10_mlflow_server.sh logs
-```
-
-## Hugging Face static viewer
-
-The repository includes a static Hugging Face Space export scaffold in
-[hf_space_hw1_problem1](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/hf_space_hw1_problem1).
-
-Recommended workflow:
-
-- Sync code from your Mac to `gx10`
-- Run training on `gx10`
-- Keep generated viewer data on `gx10` under `hf_space_hw1_problem1/runtime/`
-- The viewer export is batch-based: one slider step per exported batch
-- The viewer also keeps a runtime manifest so you can switch between multiple
-  hyperparameter runs from a dropdown
-- Only prepare a publish bundle when you are ready to upload to Hugging Face
-
-Preview it on `gx10`:
+Preview on `gx10`:
 
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_hf_viewer.sh
 ```
 
-Prepare a publish bundle on `gx10`:
+Prepare a publish bundle:
 
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_prepare_hf_space.sh
 ```
 
-Preview it locally if needed:
+Preview the static scaffold locally if needed:
 
 ```bash
 cd hf_space_hw1_problem1
 python3 -m http.server 8000
 ```
 
-If you want a different port:
+## Knowledge base
 
-```bash
-cd ~/quantum_computing
-MLFLOW_PORT=5001 ./scripts/gx10_mlflow_ui.sh
-```
+The repository includes a lightweight project KB under `kb/`:
 
-## Run the QFT demo
+- `kb/README.md`: KB usage
+- `kb/research_directions.md`: research direction index
+- `kb/directions/`: detailed direction notes
+- `kb/experiment_plans.md`: experiment planning notes
+- `kb/templates/`: reusable templates
 
-```bash
-conda activate quantum-computing
-python qft_demo.py
-```
-
-This also runs locally with Qiskit's built-in simulator.
-
-## 研究知識庫（KB）
-
-專案已在 `kb/` 提供一套輕量知識庫，先用於研究方向整理：
-
-- `kb/README.md`：KB 使用方式
-- `kb/research_directions.md`：研究方向清單
-- `kb/directions/`：方向詳細筆記
-- `kb/experiment_plans.md`：實驗規劃（目前暫不啟用）
-- `kb/templates/`：可重用模板
-
-入口：
+Open the KB entry point:
 
 ```bash
 open kb/README.md
 ```
 
-## Why Conda instead of Docker
+## Why Conda locally and Docker remotely
 
-Conda remains the default for local macOS development. Docker is now the
-preferred path for reproducible work on the remote `gx10` NVIDIA machine.
+Conda remains the default for local macOS development. Docker is the preferred
+path for reproducible execution on the remote ARM64 NVIDIA `gx10` machine.

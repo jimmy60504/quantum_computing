@@ -158,6 +158,9 @@ def train(config: Config, num_samples: int) -> None:
             num_samples,
         )
 
+        def format_metric(value: float) -> str:
+            return f"{value:.3e}"
+
         global_step = 0
         for epoch in range(1, config.epochs + 1):
             epoch_snapshots: list[dict[str, object]] = []
@@ -182,7 +185,7 @@ def train(config: Config, num_samples: int) -> None:
                 batch_loss = float(loss.item())
                 last_batch_index = batch_index
                 last_batch_loss = batch_loss
-                progress.set_postfix(batch_loss=f"{batch_loss:.6f}", refresh=True)
+                progress.set_postfix(batch_loss=format_metric(batch_loss), refresh=True)
 
                 if global_step % config.viewer_export_every == 0:
                     epoch_snapshots.append(
@@ -274,12 +277,12 @@ def train(config: Config, num_samples: int) -> None:
 
             if config.render_mode == "inline" and (epoch == 1 or epoch % 5 == 0 or epoch == config.epochs):
                 print(
-                    f"epoch={epoch:02d} train_mse={train_mse:.6f} test_mse={test_mse:.6f}",
+                    f"epoch={epoch:02d} train_mse={format_metric(train_mse)} test_mse={format_metric(test_mse)}",
                     flush=True,
                 )
             elif epoch == 1 or epoch % 5 == 0 or epoch == config.epochs:
                 print(
-                    f"epoch={epoch:02d} last_batch_loss={last_batch_loss:.6f}",
+                    f"epoch={epoch:02d} last_batch_loss={format_metric(last_batch_loss)}",
                     flush=True,
                 )
 

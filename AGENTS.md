@@ -17,6 +17,19 @@
 
 - Prefer `conda run -n quantum-computing <command>` when running Python tooling
   non-interactively.
+- Unless the user explicitly asks for a local-only run, treat model training,
+  epoch sweeps, export generation, and runtime-result inspection as `gx10`
+  execution tasks first.
+- Treat the local repository as the source of truth for code changes and
+  commits. Use `gx10` as an execution mirror for experiments and generated run
+  artifacts, not as the canonical place to edit or preserve source code.
+- When the user asks about experiment outcomes (for example "what happens at 50
+  epochs?"), first check whether the relevant run or export already exists on
+  `gx10` before deciding to rerun locally.
+- For presentation artifacts such as Hugging Face bundles, static viewers,
+  analysis pages, and exported reports, prefer a title based on the experiment
+  topic or method itself. Use course or homework identifiers such as `HW1` only
+  as subtitles or supporting context unless the user explicitly asks otherwise.
 - Keep `README.md` and `environment.yml` in sync when dependencies change.
 - Do not introduce Docker unless the user explicitly asks for containerization.
 - The user has explicitly requested Docker packaging for remote `gx10` work, so
@@ -31,6 +44,9 @@
 ## Remote host entry
 
 - Use `ssh gx10` when the user wants work done on the remote GPU-capable machine.
+- For this repository, default to `ssh gx10` for substantive training work even
+  if the user does not restate the remote-host preference each time, while
+  keeping local code as the authoritative copy intended for review and push.
 - See `kb/compute_hosts.md` for the latest recorded connection and environment
   details.
 - As of `2026-03-25`, `gx10` is an Ubuntu `24.04.4` `aarch64` machine with an

@@ -34,8 +34,8 @@ def build_viewer_payload(
     description: str | None = None,
 ) -> dict[str, object]:
     return {
-        "title": "QCAA HW1 Problem 1",
-        "subtitle": "Data reuploading regression viewer",
+        "title": "Data Reuploading Explorer",
+        "subtitle": "QCAA HW1 Problem 1 regression results",
         "status": status,
         "description": description
         or (
@@ -143,7 +143,7 @@ def update_viewer_manifest(
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
     else:
-        manifest = {"title": "HW1 QML Viewer Runs", "default_run": None, "runs": []}
+        manifest = {"title": "Data Reuploading Runs", "default_run": None, "runs": []}
 
     stem = export_path.stem
     label = config.run_name or stem
