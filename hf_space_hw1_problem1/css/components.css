@@ -8,6 +8,7 @@
     position: relative;
     display: inline-flex;
     align-items: center;
+    gap: 8px;
     flex: 0 0 auto;
 }
 
@@ -40,6 +41,21 @@
 .hero-info-button:focus-visible {
     outline: 2px solid rgba(13, 143, 113, 0.35);
     outline-offset: 2px;
+}
+
+.hero-info-button-secondary {
+    color: #8a4b0f;
+    border-color: rgba(138, 75, 15, 0.16);
+    background: rgba(255, 246, 230, 0.88);
+    animation: none;
+}
+
+.hero-info-button-secondary:hover {
+    background: rgba(232, 158, 33, 0.16);
+}
+
+.hero-info-button-secondary:focus-visible {
+    outline-color: rgba(232, 158, 33, 0.35);
 }
 
 .analysis-hint {

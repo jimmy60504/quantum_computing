@@ -1,0 +1,48 @@
+Problem 1
+Ref. [1] has shown that data reuploading circuit can be naturally interpretable as partial fourier series.
+Please read Ref. [1] for the details and read Ref. [2] for the code implementation. In Ref. [1], they
+have also discussed the case of fitting a multivariate function. Let’s consider a simple case of fitting
+a bivariate function. Given a target function:
+f (x1, x2) = sin(ex1 + x2). (1)
+Try to train a quantum machine learning model based on data reuploading circuit with x1, x2 ∈[0, 0.5],
+and test on x1, x2 ∈[0.5, 1].
+Here is sample code to generate the training data:
+import numpy as np
+import torch
+seed = 0 # replace with your student ID
+np.random.seed(seed)
+torch.manual_seed(seed)
+f = lambda x: torch.sin(torch.exp(x[:,0])+ x[:,1])
+train_input = torch.zeros(1000, 2) # 1000 samples, 2 variables
+train_ranges = np.array([0, 0.5] * 2).reshape(2, 2)
+test_input = torch.zeros(1000, 2)
+test_ranges = np.array([0.5, 1] * 2).reshape(2, 2)
+for i in range(2):
+train_input[:, i] = (
+torch.rand(
+1000,
+)
+* (train_ranges[i, 1] - train_ranges[i, 0])
++ train_ranges[i, 0]
+)
+test_input[:, i] = (
+torch.rand(
+1000,
+)
+* (test_ranges[i, 1] - test_ranges[i, 0])
++ test_ranges[i, 0]
+)
+train_label = f(train_input)
+test_label = f(test_input)
+Evaluate the model with mean squared error (MSE). Try to find the best hyperparameters of the
+model, such as the number of layers or the number of qubits, to make the test loss lower than 0.1.
+Please include the following in your report:
+(a) Plot the training loss and test loss versus epoch for your best model configuration.
+1
+
+(b) Provide a comparison table of at least 4 different hyperparameter configurations (e.g., number of
+layers, number of qubits, encoding gate type), reporting train MSE, test MSE, and the number
+of trainable parameters for each.
+(c) Compute and plot the Fourier spectrum of both the target function and your trained model’s
+output over the test domain. Discuss which frequency components your model captures and
+how this relates to the circuit depth, referencing the analysis in Ref. [1].

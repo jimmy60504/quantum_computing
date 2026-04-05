@@ -4,7 +4,7 @@
     display: grid;
     place-items: center;
     padding: 24px;
-    z-index: 9999;
+    z-index: 10010;
 }
 
 .image-lightbox[hidden] {
@@ -114,6 +114,15 @@
     overflow: auto;
     max-height: calc(100vh - 48px);
     padding: 28px 30px 28px;
+}
+
+.analysis-modal-label {
+    margin: 0 0 14px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
 }
 
 .analysis-markdown {
