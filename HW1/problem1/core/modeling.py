@@ -329,7 +329,10 @@ def resolve_render_chunksize(task_count: int, worker_count: int) -> int:
     return max(1, task_count // max(1, worker_count * 4))
 
 
-def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
+def _evaluate_timeline_snapshot(
+    task: dict[str, object],
+    include_heatmaps: bool,
+) -> dict[str, object]:
     snapshot = task["snapshot"]
     if _RENDER_CONTEXT is None:
         config_dict = task["config"]
@@ -348,20 +351,7 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
     load_model_state_snapshot(model, snapshot["model_state"])
     train_mse = evaluate_tensor(model, _RENDER_CONTEXT["train_features"], _RENDER_CONTEXT["train_labels"])
     test_mse = evaluate_tensor(model, _RENDER_CONTEXT["test_features"], _RENDER_CONTEXT["test_labels"])
-    heatmaps = {
-        "train": build_heatmap_grids_from_cache(
-            model,
-            _RENDER_CONTEXT["train_heatmap_cache"],
-            batch_size=int(config_dict["batch_size"]),
-        ),
-        "test": build_heatmap_grids_from_cache(
-            model,
-            _RENDER_CONTEXT["test_heatmap_cache"],
-            batch_size=int(config_dict["batch_size"]),
-        ),
-    }
-
-    return {
+    payload = {
         "label": snapshot["label"],
         "epoch": snapshot["epoch"],
         "batch": snapshot["batch"],
@@ -369,14 +359,40 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
         "batch_loss": snapshot["batch_loss"],
         "train_mse": train_mse,
         "test_mse": test_mse,
-        "heatmaps": heatmaps,
     }
 
+    if include_heatmaps:
+        payload["heatmaps"] = {
+            "train": build_heatmap_grids_from_cache(
+                model,
+                _RENDER_CONTEXT["train_heatmap_cache"],
+                batch_size=int(config_dict["batch_size"]),
+            ),
+            "test": build_heatmap_grids_from_cache(
+                model,
+                _RENDER_CONTEXT["test_heatmap_cache"],
+                batch_size=int(config_dict["batch_size"]),
+            ),
+        }
 
-def render_timeline_snapshots_parallel(
+    return payload
+
+
+def evaluate_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
+    return _evaluate_timeline_snapshot(task, include_heatmaps=False)
+
+
+def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
+    return _evaluate_timeline_snapshot(task, include_heatmaps=True)
+
+
+def _process_timeline_snapshots_parallel(
     config: Config,
     num_samples: int,
     timeline_snapshots: list[dict[str, object]],
+    *,
+    worker_fn,
+    description: str,
 ) -> list[dict[str, object]]:
     if not timeline_snapshots:
         return []
@@ -397,12 +413,12 @@ def render_timeline_snapshots_parallel(
 
     if worker_count == 1:
         init_render_worker_context(config_dict, num_samples)
-        iterator = (render_timeline_snapshot(task) for task in tasks)
+        iterator = (worker_fn(task) for task in tasks)
         return list(
             tqdm(
                 iterator,
                 total=len(tasks),
-                desc="render viewer",
+                desc=description,
                 leave=False,
                 dynamic_ncols=True,
             )
@@ -415,7 +431,7 @@ def render_timeline_snapshots_parallel(
         initargs=(config_dict, num_samples),
     ) as pool:
         iterator = pool.imap(
-            render_timeline_snapshot,
+            worker_fn,
             tasks,
             chunksize=resolve_render_chunksize(len(tasks), worker_count),
         )
@@ -423,8 +439,36 @@ def render_timeline_snapshots_parallel(
             tqdm(
                 iterator,
                 total=len(tasks),
-                desc=f"render viewer x{worker_count}",
+                desc=f"{description} x{worker_count}",
                 leave=False,
                 dynamic_ncols=True,
             )
         )
+
+
+def evaluate_timeline_snapshots_parallel(
+    config: Config,
+    num_samples: int,
+    timeline_snapshots: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return _process_timeline_snapshots_parallel(
+        config,
+        num_samples,
+        timeline_snapshots,
+        worker_fn=evaluate_timeline_snapshot,
+        description="evaluate metrics",
+    )
+
+
+def render_timeline_snapshots_parallel(
+    config: Config,
+    num_samples: int,
+    timeline_snapshots: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return _process_timeline_snapshots_parallel(
+        config,
+        num_samples,
+        timeline_snapshots,
+        worker_fn=render_timeline_snapshot,
+        description="render viewer",
+    )

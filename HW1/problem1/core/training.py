@@ -193,11 +193,22 @@ def train(config: Config, num_samples: int) -> None:
                     )
                     mlflow.log_metric("batch_loss", batch_loss, step=global_step)
 
-            train_mse = evaluate(model, train_loader, loss_fn)
-            test_mse = evaluate(model, test_loader, loss_fn)
-            loss_history.append({"epoch": float(epoch), "train_mse": train_mse, "test_mse": test_mse})
-            mlflow.log_metric("train_mse", train_mse, step=epoch)
-            mlflow.log_metric("test_mse", test_mse, step=epoch)
+            epoch_summary: dict[str, float] = {
+                "epoch": float(epoch),
+                "global_step": float(global_step),
+                "last_batch_loss": last_batch_loss,
+            }
+
+            if config.render_mode == "inline":
+                train_mse = evaluate(model, train_loader, loss_fn)
+                test_mse = evaluate(model, test_loader, loss_fn)
+                epoch_summary["train_mse"] = train_mse
+                epoch_summary["test_mse"] = test_mse
+                mlflow.log_metric("train_mse", train_mse, step=epoch)
+                mlflow.log_metric("test_mse", test_mse, step=epoch)
+
+            loss_history.append(epoch_summary)
+            mlflow.log_metric("epoch_last_batch_loss", last_batch_loss, step=epoch)
 
             if not epoch_snapshots or epoch_snapshots[-1]["global_step"] != global_step:
                 epoch_snapshots.append(
@@ -250,24 +261,35 @@ def train(config: Config, num_samples: int) -> None:
                     viewer_manifest_path,
                     viewer_export_path,
                     config,
-                    min(entry["test_mse"] for entry in loss_history),
+                    min(entry["test_mse"] for entry in loss_history if "test_mse" in entry),
                     train_mse,
                     test_mse,
                     timeline_steps,
                 )
 
-            if epoch == 1 or epoch % 5 == 0 or epoch == config.epochs:
+            if config.render_mode == "inline" and (epoch == 1 or epoch % 5 == 0 or epoch == config.epochs):
                 print(
                     f"epoch={epoch:02d} train_mse={train_mse:.6f} test_mse={test_mse:.6f}",
                     flush=True,
                 )
+            elif epoch == 1 or epoch % 5 == 0 or epoch == config.epochs:
+                print(
+                    f"epoch={epoch:02d} last_batch_loss={last_batch_loss:.6f}",
+                    flush=True,
+                )
 
-        best_test_mse = min(entry["test_mse"] for entry in loss_history)
-        final_train_mse = loss_history[-1]["train_mse"]
-        final_test_mse = loss_history[-1]["test_mse"]
-        mlflow.log_metric("best_test_mse", best_test_mse)
-        mlflow.log_metric("final_train_mse", final_train_mse)
-        mlflow.log_metric("final_test_mse", final_test_mse)
+        metric_history = [entry for entry in loss_history if "test_mse" in entry]
+        if metric_history:
+            best_test_mse = min(entry["test_mse"] for entry in metric_history)
+            final_train_mse = metric_history[-1]["train_mse"]
+            final_test_mse = metric_history[-1]["test_mse"]
+            mlflow.log_metric("best_test_mse", best_test_mse)
+            mlflow.log_metric("final_train_mse", final_train_mse)
+            mlflow.log_metric("final_test_mse", final_test_mse)
+        else:
+            best_test_mse = None
+            final_train_mse = None
+            final_test_mse = None
         make_circuit_diagram(model, train_dataset[0][0], runtime_circuit_path)
         write_snapshot_export(
             config,
@@ -305,7 +327,10 @@ def train(config: Config, num_samples: int) -> None:
         mlflow.log_artifact(str(snapshot_export_path), artifact_path="viewer")
 
         print(flush=True)
-        print(f"best_test_mse={best_test_mse:.6f}", flush=True)
+        if best_test_mse is not None:
+            print(f"best_test_mse={best_test_mse:.6f}", flush=True)
+        else:
+            print("best_test_mse=deferred_to_snapshot_postprocess", flush=True)
         print(f"runtime_circuit_png={runtime_circuit_path}", flush=True)
         if config.render_mode == "inline":
             print(f"viewer_export={viewer_export_path}", flush=True)

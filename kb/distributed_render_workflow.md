@@ -9,11 +9,12 @@ Some QML experiments are fast enough to train but slow to visualize because
 every saved step must rebuild a full prediction surface or heatmap. When the
 viewer needs every step, the render phase can dominate total runtime.
 
-The workflow here splits the job into three phases:
+The workflow here splits the job into four phases:
 
 1. Train once and export per-step model snapshots.
-2. Render disjoint step ranges on helper machines.
-3. Merge rendered chunks back into the final viewer export.
+2. Evaluate disjoint step ranges into lightweight metrics chunks.
+3. Render disjoint step ranges into full viewer chunks only when needed.
+4. Merge the chosen chunks back into a summary export or final viewer export.
 
 ## Reusable contract
 
@@ -44,6 +45,8 @@ Problem 1 now supports two training modes:
 Relevant scripts:
 
 - `HW1/problem1/datareuploading.py`
+- `HW1/problem1/tools/evaluate_snapshot_chunk.py`
+- `HW1/problem1/tools/merge_evaluated_chunks.py`
 - `HW1/problem1/tools/render_snapshot_chunk.py`
 - `HW1/problem1/tools/merge_rendered_chunks.py`
 
@@ -65,6 +68,10 @@ This produces a snapshot export such as:
 
 - `hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json`
 
+In `snapshots-only` mode the training loop no longer computes per-epoch
+train/test MSE inline. Those metrics are reconstructed later from the saved
+model states.
+
 ### Mounting `gx10` data over `sshfs`
 
 On a helper machine such as the Steam Deck:
@@ -83,6 +90,30 @@ Unmount when done:
 This mount can be the entire repo, so the helper machine does not need a second
 copy of the codebase. In that setup, run the render script from the mounted repo
 and write chunk outputs to a local writable directory.
+
+### Evaluating metrics for a chunk
+
+```bash
+mkdir -p ~/metrics_chunks
+cd ~/mnt/gx10-quantum
+python3 HW1/problem1/tools/evaluate_snapshot_chunk.py \
+  --snapshot-export ~/mnt/gx10-quantum/hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --start-index 0 \
+  --end-index 80 \
+  --output ~/metrics_chunks/raw-q2-l2-e20_metrics_chunk_00000_00079.json
+```
+
+Merge the metrics chunks back into a lightweight summary export:
+
+```bash
+cd ~/quantum_computing
+python3 HW1/problem1/tools/merge_evaluated_chunks.py \
+  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --chunk-glob "hf_space_hw1_problem1/runtime/metrics/raw-q2-l2-e20_snapshots_metrics_chunk_*.json"
+```
+
+This gives a cheap way to compare `train_mse` and `test_mse` across many runs
+before paying for full heatmap rendering.
 
 ### Rendering a chunk
 
@@ -119,6 +150,14 @@ python3 HW1/problem1/tools/merge_rendered_chunks.py \
   --chunk-glob "hf_space_hw1_problem1/runtime/chunks/raw-q2-l2-e20_snapshots_chunk_*.json"
 ```
 
+Then run Fourier analysis on the merged viewer export:
+
+```bash
+cd ~/quantum_computing
+python3 HW1/problem1/tools/fourier_analysis.py \
+  --viewer-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20.json
+```
+
 ## Safety rules
 
 - Treat the mounted `gx10` export directory as read-mostly.
@@ -131,7 +170,8 @@ If another problem needs per-step visual playback:
 
 1. Export step-local model state plus static plotting inputs.
 2. Implement a deterministic chunk renderer for one snapshot at a time.
-3. Reuse the same remote mount and chunk merge pattern.
+3. Add a cheap metrics-only pass when selection can be done without heatmaps.
+4. Reuse the same remote mount and chunk merge pattern.
 
 The more the problem can separate immutable inputs from step-local state, the
 easier it is to fan render work out across multiple CPUs and machines.

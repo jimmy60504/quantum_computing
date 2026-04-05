@@ -1,4 +1,4 @@
-"""Render a slice of Problem 1 snapshots into a standalone chunk JSON."""
+"""Evaluate a slice of Problem 1 snapshots into a standalone metrics chunk JSON."""
 
 from __future__ import annotations
 
@@ -27,26 +27,26 @@ configure_render_process_env()
 def load_runtime_helpers():
     try:
         from ..core.config import config_from_render_config, validate_device_config
-        from ..core.modeling import render_timeline_snapshots_parallel
+        from ..core.modeling import evaluate_timeline_snapshots_parallel
         from ..core.viewer_io import load_snapshot_export
     except ImportError:  # pragma: no cover - direct script execution on gx10
         sys.path.append(str(Path(__file__).resolve().parent.parent))
         from core.config import config_from_render_config, validate_device_config
-        from core.modeling import render_timeline_snapshots_parallel
+        from core.modeling import evaluate_timeline_snapshots_parallel
         from core.viewer_io import load_snapshot_export
 
-    return config_from_render_config, validate_device_config, render_timeline_snapshots_parallel, load_snapshot_export
+    return config_from_render_config, validate_device_config, evaluate_timeline_snapshots_parallel, load_snapshot_export
 
 
 def resolve_default_output_path(snapshot_export_path: Path, start_index: int, end_index: int) -> Path:
-    chunk_dir = snapshot_export_path.parent / "chunks"
+    chunk_dir = snapshot_export_path.parent / "metrics"
     chunk_dir.mkdir(parents=True, exist_ok=True)
     end_label = max(start_index, end_index - 1)
-    return chunk_dir / f"{snapshot_export_path.stem}_chunk_{start_index:05d}_{end_label:05d}.json"
+    return chunk_dir / f"{snapshot_export_path.stem}_metrics_chunk_{start_index:05d}_{end_label:05d}.json"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Render a subset of Problem 1 snapshots.")
+    parser = argparse.ArgumentParser(description="Evaluate metrics for a subset of Problem 1 snapshots.")
     parser.add_argument("--snapshot-export", type=Path, required=True)
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument(
@@ -62,14 +62,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         choices=("default.qubit", "lightning.qubit"),
-        help="Optional override for the render simulator.",
+        help="Optional override for the evaluation simulator.",
     )
     parser.add_argument(
         "--diff-method",
         type=str,
         default=None,
         choices=("backprop", "adjoint"),
-        help="Optional override for the render differentiation mode.",
+        help="Optional override for the evaluation differentiation mode.",
     )
     return parser
 
@@ -79,7 +79,7 @@ def main() -> None:
     (
         config_from_render_config,
         validate_device_config,
-        render_timeline_snapshots_parallel,
+        evaluate_timeline_snapshots_parallel,
         load_snapshot_export,
     ) = load_runtime_helpers()
     payload = load_snapshot_export(args.snapshot_export)
@@ -96,9 +96,11 @@ def main() -> None:
     if args.diff_method is not None:
         config.diff_method = args.diff_method
     validate_device_config(config.device_name, config.diff_method or "adjoint")
-    config.render_workers = args.render_workers or max(1, min(len(snapshots[start_index:end_index]), os.cpu_count() or 1))
+    config.render_workers = args.render_workers or max(
+        1, min(len(snapshots[start_index:end_index]), os.cpu_count() or 1)
+    )
 
-    rendered_steps = render_timeline_snapshots_parallel(
+    timeline_metrics = evaluate_timeline_snapshots_parallel(
         config,
         int(payload["render_config"]["num_samples"]),
         snapshots[start_index:end_index],
@@ -112,20 +114,20 @@ def main() -> None:
         "range": {
             "start_index": start_index,
             "end_index": end_index,
-            "count": len(rendered_steps),
+            "count": len(timeline_metrics),
         },
         "render_config": {
             "device_name": config.device_name,
             "diff_method": config.diff_method,
             "render_workers": config.render_workers,
         },
-        "timeline_steps": rendered_steps,
+        "timeline_metrics": timeline_metrics,
     }
     output_path.write_text(json.dumps(chunk_payload, indent=2) + "\n")
 
     print(f"snapshot_export={args.snapshot_export}")
     print(f"output={output_path}")
-    print(f"steps_rendered={len(rendered_steps)}")
+    print(f"steps_evaluated={len(timeline_metrics)}")
     print(f"range={start_index}:{end_index}")
 
 

@@ -270,8 +270,8 @@ PROB1_RENDER_MP_START=spawn PROB1_RENDER_CHUNKSIZE=1 \
 ./scripts/gx10_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py --help
 ```
 
-If you want to keep every step but offload rendering to helper machines, the
-Problem 1 training script also supports snapshot export mode:
+If you want to keep every step while separating training from later evaluation,
+the Problem 1 training script also supports snapshot export mode:
 
 ```bash
 cd ~/quantum_computing
@@ -281,8 +281,34 @@ cd ~/quantum_computing
   --run-name raw-q2-l2-e20
 ```
 
+That mode now defers train/test MSE and heatmap generation to post-processing.
+You can first evaluate metrics-only chunks:
+
+```bash
+cd ~/quantum_computing
+python3 HW1/problem1/tools/evaluate_snapshot_chunk.py \
+  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+
+python3 HW1/problem1/tools/merge_evaluated_chunks.py \
+  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+```
+
+Then render the full viewer export only for runs you want to keep:
+
+```bash
+cd ~/quantum_computing
+python3 HW1/problem1/tools/render_snapshot_chunk.py \
+  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+
+python3 HW1/problem1/tools/merge_rendered_chunks.py \
+  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+
+python3 HW1/problem1/tools/fourier_analysis.py \
+  --viewer-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20.json
+```
+
 See [kb/distributed_render_workflow.md](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/kb/distributed_render_workflow.md)
-for the `sshfs + chunk render + merge` workflow.
+for the `snapshot -> metrics -> render -> merge` workflow.
 
 ## Scaffold HW1 Problem 2
 
