@@ -8,6 +8,21 @@ import os
 import sys
 from pathlib import Path
 
+
+def configure_render_process_env() -> None:
+    worker_threads = os.environ.get("PROB1_RENDER_WORKER_THREADS", "1")
+    for name in (
+        "OMP_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+    ):
+        os.environ[name] = worker_threads
+
+
+configure_render_process_env()
+
 try:
     from ..core.config import config_from_render_config, validate_device_config
     from ..core.modeling import render_timeline_snapshots_parallel

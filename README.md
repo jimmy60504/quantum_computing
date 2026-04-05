@@ -8,7 +8,7 @@ GPU-oriented work with Docker on `gx10`.
 - Environment manager: Conda
 - Environment name: `quantum-computing`
 - Python version: `3.11`
-- Main packages: `qiskit==2.3.0`, `pennylane==0.44.1`
+- Main packages: `qiskit==2.3.0`, `pennylane==0.44.1`, `torch`
 
 ## Docker on `gx10`
 
@@ -72,6 +72,8 @@ cd ~/quantum_computing
 ```
 
 Build the x86_64 CPU render-worker image for helper machines such as the Steam Deck:
+it uses a `python:3.12-slim-bookworm` base and installs a newer helper stack
+than the pinned local Conda environment.
 
 ```bash
 ./scripts/build_render_worker_x86_64.sh
@@ -106,6 +108,14 @@ cd ~/quantum_computing
 ./scripts/gx10_run_py.sh pennylane_hello.py
 GX10_IMAGE=quantum-gx10:aer-gpu ./scripts/gx10_run_py.sh qiskit_aer_gpu_demo.py
 ```
+
+On `gx10`, the wrappers now default to a big-core / small-core split:
+
+- heavy Python jobs via `gx10_run_py.sh` use CPU set `5-9,15-19` with `10` CPUs
+- background services such as `gx10_mlflow_ui.sh` use CPU set `0-4,10-14` with `4` CPUs
+- host-side viewer serving via `gx10_hf_viewer.sh` is pinned to the same small-core set
+
+You can override either wrapper at runtime with `GX10_CPUSET` and `GX10_CPUS`.
 
 If you are working from your Mac and want to push the latest files to `gx10`:
 
@@ -189,6 +199,12 @@ python -c "import qiskit; print(qiskit.__version__)"
 python -c "import pennylane as qml; print(qml.__version__)"
 ```
 
+## Verify Torch
+
+```bash
+python -c "import torch; print(torch.__version__)"
+```
+
 ## Run the local hello example
 
 ```bash
@@ -234,14 +250,7 @@ cd ~/quantum_computing
   --diff-method backprop
 ```
 
-You can also compare encoding choices at fixed `q=2`, `l=2`:
-
-```bash
-cd ~/quantum_computing
-./scripts/gx10_hw1_sweep_encodings_q2l2.sh
-```
-
-Or run one encoding explicitly:
+You can run one encoding explicitly:
 
 ```bash
 cd ~/quantum_computing
@@ -249,6 +258,16 @@ cd ~/quantum_computing
   --encoding exp \
   --num-qubits 2 \
   --num-layers 2
+```
+
+For slower ARM64 hosts such as `gx10`, the distributed renderer now avoids
+rebuilding the fixed dataset and target heatmaps for every snapshot, and Linux
+workers default to the lower-overhead `fork` multiprocessing start method. You
+can still override the worker pool behavior with:
+
+```bash
+PROB1_RENDER_MP_START=spawn PROB1_RENDER_CHUNKSIZE=1 \
+./scripts/gx10_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py --help
 ```
 
 If you want to keep every step but offload rendering to helper machines, the

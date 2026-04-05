@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import multiprocessing as mp
 import os
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -20,6 +21,8 @@ try:
 except ImportError:  # pragma: no cover - direct script execution on gx10
     from config import Config, TEST_RANGES, TRAIN_RANGES
     from sample import SEED, sample_inputs, target_function
+
+_RENDER_CONTEXT: dict[str, object] | None = None
 
 
 def encoded_feature_dim(encoding_mode: str) -> int:
@@ -163,6 +166,13 @@ def evaluate(model: nn.Module, loader: DataLoader, loss_fn: nn.Module) -> float:
     return total_loss / total_count
 
 
+def evaluate_tensor(model: nn.Module, features: torch.Tensor, labels: torch.Tensor) -> float:
+    model.eval()
+    with torch.no_grad():
+        predictions = model(features)
+        return float(nn.functional.mse_loss(predictions, labels).item())
+
+
 def build_heatmap_grids(
     model: nn.Module,
     grid_size: int,
@@ -190,6 +200,52 @@ def build_heatmap_grids(
         "target": {"x": x.tolist(), "y": y.tolist(), "z": target_grid.tolist()},
         "prediction": {"x": x.tolist(), "y": y.tolist(), "z": prediction_grid.tolist()},
         "error": {"x": x.tolist(), "y": y.tolist(), "z": error_grid.tolist()},
+    }
+
+
+def make_heatmap_cache(
+    grid_size: int,
+    ranges: np.ndarray,
+) -> dict[str, object]:
+    x = np.linspace(float(ranges[0, 0]), float(ranges[0, 1]), grid_size, dtype=np.float32)
+    y = np.linspace(float(ranges[1, 0]), float(ranges[1, 1]), grid_size, dtype=np.float32)
+    x_grid, y_grid = np.meshgrid(x, y)
+    flat_grid = np.stack([x_grid.ravel(), y_grid.ravel()], axis=1)
+    flat_tensor = torch.tensor(flat_grid, dtype=torch.float32)
+    target_grid = target_function(flat_tensor).reshape(grid_size, grid_size).numpy()
+    return {
+        "x": x.tolist(),
+        "y": y.tolist(),
+        "flat_tensor": flat_tensor,
+        "target_grid": target_grid,
+    }
+
+
+def build_heatmap_grids_from_cache(
+    model: nn.Module,
+    heatmap_cache: dict[str, object],
+    batch_size: int = 256,
+) -> dict[str, dict[str, list[list[float]] | list[float]]]:
+    flat_tensor = heatmap_cache["flat_tensor"]
+    target_grid = heatmap_cache["target_grid"]
+    x = heatmap_cache["x"]
+    y = heatmap_cache["y"]
+    grid_size = len(x)
+
+    predictions = []
+    model.eval()
+    with torch.no_grad():
+        for start in range(0, flat_tensor.shape[0], batch_size):
+            batch = flat_tensor[start : start + batch_size]
+            predictions.append(model(batch).squeeze(1).cpu())
+
+    prediction_grid = torch.cat(predictions).reshape(grid_size, grid_size).numpy()
+    error_grid = np.abs(target_grid - prediction_grid)
+
+    return {
+        "target": {"x": x, "y": y, "z": target_grid.tolist()},
+        "prediction": {"x": x, "y": y, "z": prediction_grid.tolist()},
+        "error": {"x": x, "y": y, "z": error_grid.tolist()},
     }
 
 
@@ -236,20 +292,51 @@ def init_render_worker() -> None:
             pass
 
 
+def init_render_worker_context(config_dict: dict[str, object], num_samples: int) -> None:
+    global _RENDER_CONTEXT
+
+    init_render_worker()
+    train_dataset, test_dataset = make_datasets(num_samples)
+    train_features, train_labels = train_dataset.tensors
+    test_features, test_labels = test_dataset.tensors
+    _RENDER_CONTEXT = {
+        "config": config_dict,
+        "train_features": train_features,
+        "train_labels": train_labels,
+        "test_features": test_features,
+        "test_labels": test_labels,
+        "train_heatmap_cache": make_heatmap_cache(int(config_dict["heatmap_grid_size"]), TRAIN_RANGES),
+        "test_heatmap_cache": make_heatmap_cache(int(config_dict["heatmap_grid_size"]), TEST_RANGES),
+    }
+
+
+def resolve_render_start_method() -> str:
+    requested = os.environ.get("PROB1_RENDER_MP_START")
+    if requested:
+        return requested
+
+    if sys.platform.startswith("linux"):
+        return "fork"
+
+    return "spawn"
+
+
+def resolve_render_chunksize(task_count: int, worker_count: int) -> int:
+    requested = os.environ.get("PROB1_RENDER_CHUNKSIZE")
+    if requested:
+        return max(1, int(requested))
+
+    return max(1, task_count // max(1, worker_count * 4))
+
+
 def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
-    config_dict = task["config"]
     snapshot = task["snapshot"]
-    train_dataset, test_dataset = make_datasets(int(config_dict["num_samples"]))
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=int(config_dict["batch_size"]),
-        shuffle=False,
-    )
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=int(config_dict["batch_size"]),
-        shuffle=False,
-    )
+    if _RENDER_CONTEXT is None:
+        config_dict = task["config"]
+        init_render_worker_context(config_dict, int(config_dict["num_samples"]))
+    else:
+        config_dict = _RENDER_CONTEXT["config"]
+
     model = DataReuploadingRegressor(
         num_qubits=int(config_dict["num_qubits"]),
         num_layers=int(config_dict["num_layers"]),
@@ -259,9 +346,20 @@ def render_timeline_snapshot(task: dict[str, object]) -> dict[str, object]:
         diff_method=str(config_dict["diff_method"]),
     )
     load_model_state_snapshot(model, snapshot["model_state"])
-    train_mse = evaluate(model, train_loader, nn.MSELoss())
-    test_mse = evaluate(model, test_loader, nn.MSELoss())
-    heatmaps = build_dual_domain_heatmaps(model, int(config_dict["heatmap_grid_size"]))
+    train_mse = evaluate_tensor(model, _RENDER_CONTEXT["train_features"], _RENDER_CONTEXT["train_labels"])
+    test_mse = evaluate_tensor(model, _RENDER_CONTEXT["test_features"], _RENDER_CONTEXT["test_labels"])
+    heatmaps = {
+        "train": build_heatmap_grids_from_cache(
+            model,
+            _RENDER_CONTEXT["train_heatmap_cache"],
+            batch_size=int(config_dict["batch_size"]),
+        ),
+        "test": build_heatmap_grids_from_cache(
+            model,
+            _RENDER_CONTEXT["test_heatmap_cache"],
+            batch_size=int(config_dict["batch_size"]),
+        ),
+    }
 
     return {
         "label": snapshot["label"],
@@ -298,6 +396,7 @@ def render_timeline_snapshots_parallel(
     worker_count = max(1, min(config.render_workers, len(tasks), os.cpu_count() or 1))
 
     if worker_count == 1:
+        init_render_worker_context(config_dict, num_samples)
         iterator = (render_timeline_snapshot(task) for task in tasks)
         return list(
             tqdm(
@@ -309,9 +408,17 @@ def render_timeline_snapshots_parallel(
             )
         )
 
-    ctx = mp.get_context("spawn")
-    with ctx.Pool(processes=worker_count, initializer=init_render_worker) as pool:
-        iterator = pool.imap(render_timeline_snapshot, tasks)
+    ctx = mp.get_context(resolve_render_start_method())
+    with ctx.Pool(
+        processes=worker_count,
+        initializer=init_render_worker_context,
+        initargs=(config_dict, num_samples),
+    ) as pool:
+        iterator = pool.imap(
+            render_timeline_snapshot,
+            tasks,
+            chunksize=resolve_render_chunksize(len(tasks), worker_count),
+        )
         return list(
             tqdm(
                 iterator,

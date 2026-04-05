@@ -5,6 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 HF_VIEWER_PORT="${HF_VIEWER_PORT:-7860}"
+GX10_LIGHT_CPUSET_DEFAULT="${GX10_LIGHT_CPUSET_DEFAULT:-0-4,10-14}"
+CPUSET="${GX10_CPUSET:-${GX10_LIGHT_CPUSET_DEFAULT}}"
 
 existing_pids="$(lsof -tiTCP:${HF_VIEWER_PORT} -sTCP:LISTEN 2>/dev/null || true)"
 if [[ -n "${existing_pids}" ]]; then
@@ -20,4 +22,4 @@ if [[ -n "${existing_pids}" ]]; then
 fi
 
 cd "${REPO_ROOT}/hf_space_hw1_problem1"
-exec python3 -m http.server "${HF_VIEWER_PORT}"
+exec taskset -c "${CPUSET}" python3 -m http.server "${HF_VIEWER_PORT}"

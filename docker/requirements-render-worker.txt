@@ -1,9 +1,9 @@
 matplotlib
 mlflow
 numpy
-pennylane==0.44.1
+pennylane
 pylatexenc
-qiskit==2.3.0
+qiskit
 scikit-learn
 sympy
 tqdm

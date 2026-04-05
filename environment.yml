@@ -8,6 +8,7 @@ dependencies:
   - matplotlib
   - scikit-learn
   - sympy
+  - pytorch
   - pip:
       - mlflow
       - pennylane==0.44.1
