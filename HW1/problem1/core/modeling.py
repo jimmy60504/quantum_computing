@@ -26,7 +26,13 @@ _RENDER_CONTEXT: dict[str, object] | None = None
 
 
 def encoded_feature_dim(encoding_mode: str) -> int:
-    if encoding_mode in ("quantum_exact", "phase_learnable", "scaled_exact"):
+    if encoding_mode in (
+        "quantum_exact",
+        "phase_learnable",
+        "scaled_exact",
+        "same_axis_reupload",
+        "same_axis_rot",
+    ):
         return 2
     raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
 
@@ -35,7 +41,13 @@ def encode_features(x: torch.Tensor, encoding_mode: str) -> torch.Tensor:
     x1 = x[:, 0:1]
     x2 = x[:, 1:2]
 
-    if encoding_mode in ("quantum_exact", "phase_learnable", "scaled_exact"):
+    if encoding_mode in (
+        "quantum_exact",
+        "phase_learnable",
+        "scaled_exact",
+        "same_axis_reupload",
+        "same_axis_rot",
+    ):
         return torch.cat([torch.exp(x1), x2], dim=1)
 
     raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
@@ -70,15 +82,25 @@ class DataReuploadingRegressor(nn.Module):
         self.use_quantum_exact = encoding_mode == "quantum_exact"
         self.use_phase_learnable = encoding_mode == "phase_learnable"
         self.use_scaled_exact = encoding_mode == "scaled_exact"
+        self.use_same_axis_reupload = encoding_mode == "same_axis_reupload"
+        self.use_same_axis_rot = encoding_mode == "same_axis_rot"
         self.device_name = device_name
         self.diff_method = diff_method
 
-        if encoding_mode not in ("quantum_exact", "phase_learnable", "scaled_exact"):
+        if encoding_mode not in (
+            "quantum_exact",
+            "phase_learnable",
+            "scaled_exact",
+            "same_axis_reupload",
+            "same_axis_rot",
+        ):
             raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
         if num_qubits != 1:
             raise ValueError(f"{encoding_mode} mode requires num_qubits=1.")
-        if num_layers != 1:
+        if not (self.use_same_axis_reupload or self.use_same_axis_rot) and num_layers != 1:
             raise ValueError(f"{encoding_mode} mode requires num_layers=1.")
+        if (self.use_same_axis_reupload or self.use_same_axis_rot) and num_layers < 1:
+            raise ValueError(f"{encoding_mode} requires num_layers >= 1.")
 
         self.phase_shift = (
             nn.Parameter(torch.tensor(-np.pi / 2.0, dtype=torch.float32))
@@ -105,40 +127,149 @@ class DataReuploadingRegressor(nn.Module):
             if self.use_scaled_exact
             else None
         )
+        self.phase_shifts = (
+            nn.Parameter(torch.full((num_layers,), -np.pi / 2.0, dtype=torch.float32))
+            if self.use_same_axis_reupload or self.use_same_axis_rot
+            else None
+        )
+        self.exp_scales = (
+            nn.Parameter(torch.ones(num_layers, dtype=torch.float32))
+            if self.use_same_axis_reupload or self.use_same_axis_rot
+            else None
+        )
+        self.exp_biases = (
+            nn.Parameter(torch.zeros(num_layers, dtype=torch.float32))
+            if self.use_same_axis_reupload or self.use_same_axis_rot
+            else None
+        )
+        self.x2_scales = (
+            nn.Parameter(torch.ones(num_layers, dtype=torch.float32))
+            if self.use_same_axis_reupload or self.use_same_axis_rot
+            else None
+        )
+        self.x2_biases = (
+            nn.Parameter(torch.zeros(num_layers, dtype=torch.float32))
+            if self.use_same_axis_reupload or self.use_same_axis_rot
+            else None
+        )
+        self.block_rotations = (
+            nn.Parameter(torch.zeros((num_layers, 3), dtype=torch.float32))
+            if self.use_same_axis_rot
+            else None
+        )
 
         self.dev = qml.device(device_name, wires=num_qubits)
 
         @qml.qnode(self.dev, interface="torch", diff_method=diff_method)
-        def exact_circuit(encoded_features: torch.Tensor, phase_shift: torch.Tensor) -> torch.Tensor:
-            qml.RY(encoded_features[0], wires=0)
-            qml.RY(encoded_features[1], wires=0)
-            qml.RY(phase_shift, wires=0)
+        def exact_circuit(
+            encoded_features: torch.Tensor,
+            phase_shifts: torch.Tensor,
+            exp_scales: torch.Tensor,
+            exp_biases: torch.Tensor,
+            x2_scales: torch.Tensor,
+            x2_biases: torch.Tensor,
+            block_rotations: torch.Tensor,
+        ) -> torch.Tensor:
+            for block_idx in range(self.num_layers):
+                qml.RY(exp_scales[block_idx] * encoded_features[0] + exp_biases[block_idx], wires=0)
+                qml.RY(x2_scales[block_idx] * encoded_features[1] + x2_biases[block_idx], wires=0)
+                qml.RY(phase_shifts[block_idx], wires=0)
+                qml.Rot(
+                    block_rotations[block_idx, 0],
+                    block_rotations[block_idx, 1],
+                    block_rotations[block_idx, 2],
+                    wires=0,
+                )
             return qml.expval(qml.PauliZ(0))
 
         self.exact_circuit = exact_circuit
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        lifted_features = encode_features(x, self.encoding_mode)
-        structured_features = lifted_features
-        if self.use_scaled_exact:
-            structured_features = torch.stack(
-                [
-                    self.exp_scale * lifted_features[:, 0] + self.exp_bias,
-                    self.x2_scale * lifted_features[:, 1] + self.x2_bias,
-                ],
-                dim=1,
+    def _resolve_circuit_parameters(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        if self.use_same_axis_reupload or self.use_same_axis_rot:
+            block_rotations = (
+                self.block_rotations.to(dtype=x.dtype, device=x.device)
+                if self.block_rotations is not None
+                else torch.zeros((self.num_layers, 3), dtype=x.dtype, device=x.device)
             )
+            return (
+                self.phase_shifts.to(dtype=x.dtype, device=x.device),
+                self.exp_scales.to(dtype=x.dtype, device=x.device),
+                self.exp_biases.to(dtype=x.dtype, device=x.device),
+                self.x2_scales.to(dtype=x.dtype, device=x.device),
+                self.x2_biases.to(dtype=x.dtype, device=x.device),
+                block_rotations,
+            )
+
         phase_shift = (
             self.phase_shift
             if self.phase_shift is not None
             else torch.tensor(-np.pi / 2.0, dtype=x.dtype, device=x.device)
         )
-        circuit_outputs = [self.exact_circuit(sample, phase_shift) for sample in structured_features]
+        exp_scale = (
+            self.exp_scale
+            if self.exp_scale is not None
+            else torch.tensor(1.0, dtype=x.dtype, device=x.device)
+        )
+        exp_bias = (
+            self.exp_bias
+            if self.exp_bias is not None
+            else torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        )
+        x2_scale = (
+            self.x2_scale
+            if self.x2_scale is not None
+            else torch.tensor(1.0, dtype=x.dtype, device=x.device)
+        )
+        x2_bias = (
+            self.x2_bias
+            if self.x2_bias is not None
+            else torch.tensor(0.0, dtype=x.dtype, device=x.device)
+        )
+        return (
+            torch.atleast_1d(phase_shift).to(dtype=x.dtype, device=x.device),
+            torch.atleast_1d(exp_scale).to(dtype=x.dtype, device=x.device),
+            torch.atleast_1d(exp_bias).to(dtype=x.dtype, device=x.device),
+            torch.atleast_1d(x2_scale).to(dtype=x.dtype, device=x.device),
+            torch.atleast_1d(x2_bias).to(dtype=x.dtype, device=x.device),
+            torch.zeros((self.num_layers, 3), dtype=x.dtype, device=x.device),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        lifted_features = encode_features(x, self.encoding_mode)
+        phase_shifts, exp_scales, exp_biases, x2_scales, x2_biases, block_rotations = (
+            self._resolve_circuit_parameters(x)
+        )
+        circuit_outputs = [
+            self.exact_circuit(
+                sample,
+                phase_shifts,
+                exp_scales,
+                exp_biases,
+                x2_scales,
+                x2_biases,
+                block_rotations,
+            )
+            for sample in lifted_features
+        ]
         return torch.stack(circuit_outputs).unsqueeze(1).to(x.dtype)
 
 
 def snapshot_model_state(model: DataReuploadingRegressor) -> dict[str, list]:
     snapshot: dict[str, float] = {}
+    if model.phase_shifts is not None:
+        snapshot["phase_shifts"] = model.phase_shifts.detach().cpu().tolist()
+    if model.block_rotations is not None:
+        snapshot["block_rotations"] = model.block_rotations.detach().cpu().tolist()
+    if model.exp_scales is not None:
+        snapshot["exp_scales"] = model.exp_scales.detach().cpu().tolist()
+    if model.exp_biases is not None:
+        snapshot["exp_biases"] = model.exp_biases.detach().cpu().tolist()
+    if model.x2_scales is not None:
+        snapshot["x2_scales"] = model.x2_scales.detach().cpu().tolist()
+    if model.x2_biases is not None:
+        snapshot["x2_biases"] = model.x2_biases.detach().cpu().tolist()
     if model.phase_shift is not None:
         snapshot["phase_shift"] = float(model.phase_shift.detach().cpu().item())
     if model.exp_scale is not None:
@@ -156,6 +287,20 @@ def load_model_state_snapshot(
     model: DataReuploadingRegressor, snapshot_state: dict[str, list]
 ) -> DataReuploadingRegressor:
     with torch.no_grad():
+        if model.phase_shifts is not None:
+            model.phase_shifts.copy_(torch.tensor(snapshot_state["phase_shifts"], dtype=torch.float32))
+        if model.block_rotations is not None:
+            model.block_rotations.copy_(
+                torch.tensor(snapshot_state["block_rotations"], dtype=torch.float32)
+            )
+        if model.exp_scales is not None:
+            model.exp_scales.copy_(torch.tensor(snapshot_state["exp_scales"], dtype=torch.float32))
+        if model.exp_biases is not None:
+            model.exp_biases.copy_(torch.tensor(snapshot_state["exp_biases"], dtype=torch.float32))
+        if model.x2_scales is not None:
+            model.x2_scales.copy_(torch.tensor(snapshot_state["x2_scales"], dtype=torch.float32))
+        if model.x2_biases is not None:
+            model.x2_biases.copy_(torch.tensor(snapshot_state["x2_biases"], dtype=torch.float32))
         if model.phase_shift is not None:
             model.phase_shift.copy_(torch.tensor(snapshot_state["phase_shift"], dtype=torch.float32))
         if model.exp_scale is not None:
@@ -252,21 +397,17 @@ def make_circuit_diagram(
 ) -> Path:
     lifted_sample = encode_features(sample.unsqueeze(0), model.encoding_mode)
     structured_sample = lifted_sample.squeeze(0)
-    if model.use_scaled_exact:
-        structured_sample = torch.stack(
-            [
-                model.exp_scale * structured_sample[0] + model.exp_bias,
-                model.x2_scale * structured_sample[1] + model.x2_bias,
-            ]
-        )
-    phase_shift = (
-        model.phase_shift.detach().cpu().numpy()
-        if model.phase_shift is not None
-        else np.array(-np.pi / 2.0, dtype=np.float32)
+    phase_shifts, exp_scales, exp_biases, x2_scales, x2_biases, block_rotations = (
+        model._resolve_circuit_parameters(structured_sample)
     )
     fig, _ = qml.draw_mpl(model.exact_circuit)(
         structured_sample.detach().cpu().numpy(),
-        phase_shift,
+        phase_shifts.detach().cpu().numpy(),
+        exp_scales.detach().cpu().numpy(),
+        exp_biases.detach().cpu().numpy(),
+        x2_scales.detach().cpu().numpy(),
+        x2_biases.detach().cpu().numpy(),
+        block_rotations.detach().cpu().numpy(),
     )
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(fig)

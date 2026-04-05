@@ -1,48 +1,94 @@
-# Problem 1 說明
+# Problem 1 分析
 
-這個頁面整理了 Problem 1 的主要結果、訓練過程和幾張輔助圖，方便把不同設定放在同一個地方看。
+這個頁面現在不再主打舊的 qubit/layer 大矩陣，而是改成沿著題目本身的結構，從「可以精確做出答案的量子路徑」一步一步往外放鬆。
 
 ## 題目背景
 
-這一題要做的是回歸 `f(x1, x2) = sin(exp(x1) + x2)`，但資料不是從整個平面隨機抽，而是刻意把 train domain 放在 `[0.0, 0.5] x [0.0, 0.5]`，test domain 放在 `[0.5, 1.0] x [0.5, 1.0]`。也就是說，模型只能先在左下角看到一小塊區域，接著再拿去推右上角那塊沒有直接看過的區域，所以這題本身就帶有很明顯的 extrapolation 性質。
+Problem 1 的目標函數是 `f(x1, x2) = sin(exp(x1) + x2)`。資料切法不是一般的隨機插值，而是刻意把 train domain 放在 `[0.0, 0.5] x [0.0, 0.5]`，test domain 放在 `[0.5, 1.0] x [0.5, 1.0]`。換句話說，模型必須先在左下角看一小塊曲面，再把這個結構推到右上角沒有直接看過的區域。
 
 ![Train/test split overview](./assets/problem1_data_overview.png)
 
-左半邊是整個 target function 的熱度分布，右半邊把 train samples 和 test samples 分開標出來，所以可以很直觀看到 train 和 test 是怎麼被切開的，也更容易把這個 split 和後面看到的泛化表現連起來看。
+這也是為什麼這一題的重點不是單純把 train loss 壓低，而是看模型能不能保住正確的曲率與相位結構。
 
-## 先看這個頁面有什麼
+## 為什麼要改成結構化主線
 
-左邊的 `Results` 會列出每一組設定的 train / test MSE，現在主要用來比較不同 qubits 和 layers 的表現。中間上方的兩張 3D 圖分別是 train domain 和 test domain 的預測曲面，右邊是對應的 error map。最下面的 loss 圖可以配合 slider 看每一個 step 的變化。左側 `Experiment` 卡片的上方則放了目前的電路圖，以及 Fourier spectrum。
+前一版比較像是從 generic ansatz 出發，用很多 projection、encoding 和電路排列組合去猜。那條路的問題是模型雖然有很多自由度，但很難判斷到底是量子路徑不夠，還是前面的 generic 設計先把題目結構洗掉了。
 
-如果只是第一次進來，最簡單的看法是：
+後來我們發現這題其實有一個非常乾淨的量子解：
 
-1. 先在左邊挑一組設定。
-2. 看上面的 train / test 3D 圖。
-3. 再看右邊 error map 哪裡最亮。
-4. 最後拖下面的 slider，看這個結果是怎麼慢慢長出來的。
+- 同一個 qubit 上連續做 `RY(exp(x1))`
+- 再做 `RY(x2)`
+- 最後補一個 `RY(-pi/2)`
+- 量測 `PauliZ`
 
-## 目前結果裡，test 最好的是哪一組
+因為同軸 reupload 會把角度加起來，所以這條路徑幾乎就是直接在量子電路裡實現 `sin(exp(x1) + x2)`。
 
-目前這四組裡，test 表現最好的是 `q2-l2-e20`。它最後的 test MSE 大約是 `0.2139`，訓練過程中的最低點大約到 `0.1893`。第二好的是 `q2-l3-e20`。`q3-l2-e20` 和 `q3-l3-e20` 就差得比較明顯，test MSE 都高不少。
+## 目前這個頁面裡的幾組結果在看什麼
 
-這一輪結果看起來很直接：模型不是越大越好。至少在這個 split 上，`q=2` 反而比 `q=3` 更穩。layers 從 2 到 3 有變化，但沒有出現「加深之後就明顯解決 test 問題」的情況。
+現在的主線可以分成四層：
 
-## 從訓練過程裡會看到什麼
+1. `quantum_exact`
+2. `phase_learnable`
+3. `scaled_exact`
+4. `same_axis_reupload`
 
-把 slider 往前拖時，最明顯的現象通常是 train 那邊很快就貼上去，曲面會越來越順，train MSE 也會一路下降。test 那邊就不太一樣了。前面幾步通常會先進步一段，但很快就進入比較平的平台區。下面的 loss 圖也會反映同一件事：train loss 持續往下掉，但 test MSE 並沒有跟著一直改善。
+前三個是從 exact 解一步一步放鬆：
 
-這也是這個頁面最值得看的地方。只看最後一個數字，很容易以為模型只是「好或不好」；把 slider 拖過一遍之後，會更清楚它其實有學到東西，只是後面新增的訓練步數大多是在修 train domain，不一定真的幫到 test domain。
+- `quantum_exact`：直接用固定結構做答案
+- `phase_learnable`：只把 `-pi/2` 改成可學參數
+- `scaled_exact`：再讓 `exp(x1)` 和 `x2` 前面可以學 scale / bias
 
-## 為什麼這題會難 fit
+第四個 `same_axis_reupload` 才是第一個比較像「真正 data reuploading 模型」的版本：
 
-問題主要出在 split 本身。train domain 在左下角，那裡看到的是 target function 靠近高值區的一小段弧面；test domain 在右上角，曲面會往下彎得更明顯。也就是說，模型在 train 上學到的是一段局部形狀，接下來卻要把這段形狀延伸到另一塊長得不太一樣的區域。
+- 還是保留同一個 qubit、同一個 rotation axis
+- 但不再只做單一 block
+- 而是用多個 reupload blocks 去學同一個 backbone
 
-所以這題比較像 extrapolation，不是單純的 interpolation。這也解釋了為什麼 train MSE 已經很小，test 還是可能卡住。模型不是沒有學到，而是它能從 train 區域拿到的訊息本來就有限。
+## 這一輪最重要的結論
 
-## 頻譜在看什麼
+這幾組 `e10` 的結果很清楚：
 
-3D surface 看的是空間裡的形狀，Fourier spectrum 看的是這個形狀裡有哪些頻率成分。這兩個角度放在一起看會比較完整。
+- `quantum_exact` final test MSE 約 `7.34e-15`
+- `phase_learnable` final test MSE 約 `5.77e-11`
+- `scaled_exact` final test MSE 約 `2.06e-10`
+- `same_axis_reupload (q1, l2)` best test MSE 約 `4.91e-03`
 
-就這一輪結果來看，`q2-l2` 和 `q2-l3` 的頻譜明顯比較接近 target。它們抓到的主頻位置和 target 比較一致，只是整體能量還是弱一些。相對地，`q3-l2` 和 `q3-l3` 的頻譜能量小很多，代表它們雖然也學到一些低頻結構，但重建出來的內容更弱、更平，這和它們在 test MSE 上明顯落後是同一個方向。
+這代表兩件事。
 
-所以頻譜圖在這裡的用途，不只是補一張漂亮的圖，而是幫忙確認 3D surface 上看到的現象：`q2-*` 這兩組不只是表面上看起來比較像，它們在主要頻率成分上也更接近 target；`q3-*` 這兩組則比較像只抓到了一個更弱、更平滑的近似面。
+第一，題目本身不是量子 data reuploading 做不到。只要保住「同 qubit、同軸、角度相加」這個核心結構，量子路徑可以幾乎精確重建答案。
+
+第二，第一個比較泛化的 `same_axis_reupload` 雖然還不能 exact-fit，但它學到的已經不是亂的面。它會沿著正確的曲率方向往答案靠近，這比前一版 generic baseline 有意義得多。
+
+## 怎麼看 `same_axis_reupload`
+
+如果只看數字，`same_axis_reupload-q1-l2-e10` 還有明顯誤差：
+
+- final train MSE 約 `6.79e-05`
+- final test MSE 約 `6.42e-03`
+
+但這組最重要的不是它還差多少，而是它已經學到對的幾何家族。也就是說，現在的誤差比較像校準還沒完全對齊，而不是模型根本沒抓到題目的主結構。
+
+這也是為什麼目前更合理的方向，是沿著 same-axis backbone 做小幅泛化，而不是回到舊的 projection-heavy 架構。
+
+## 這個頁面要怎麼看
+
+最建議的看法是：
+
+1. 先看 `quantum_exact`，把它當成結構參考解。
+2. 再看 `phase_learnable` 和 `scaled_exact`，確認小幅放鬆後是不是還能維持這個解。
+3. 最後看 `same_axis_reupload`，觀察真正的 data reuploading 版本離這個參考解還差多少。
+4. 用 slider 拖過訓練過程，特別注意 test domain 曲面的曲率是怎麼長出來的。
+
+## 頻譜在這裡的角色
+
+Fourier spectrum 在這個頁面的用途，不是單純補一張漂亮圖，而是幫忙確認模型是不是抓到了對的主頻結構。
+
+`quantum_exact` 的主頻和 target 幾乎重合，這和它幾乎零誤差是一致的。`same_axis_reupload` 雖然幅度還沒有完全對上，但主頻位置已經沿著正確方向靠近 target。這個訊號和 3D surface 上看到的曲率學習，是互相對應的。
+
+## 目前的工作假設
+
+到目前為止，最合理的假設是：
+
+- Problem 1 最重要的 inductive bias 是同 qubit、同軸 reupload
+- 一旦把 `exp(x1)` 和 `x2` 拆散，或先丟進過度 generic 的 projection，模型就比較容易偏掉
+- 真正值得做的泛化，不是丟掉 exact backbone，而是保留它，再一小步一小步增加自由度

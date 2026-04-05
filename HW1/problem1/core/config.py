@@ -15,6 +15,8 @@ ENCODING_CHOICES = (
     "quantum_exact",
     "phase_learnable",
     "scaled_exact",
+    "same_axis_reupload",
+    "same_axis_rot",
 )
 LR_SCHEDULER_CHOICES = ("none", "cosine")
 RENDER_MODE_CHOICES = ("inline", "snapshots-only")

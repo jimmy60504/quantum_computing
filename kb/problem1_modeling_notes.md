@@ -153,9 +153,78 @@ The main experiment path should now follow a structured generalization ladder in
 - `quantum_exact`
 - `phase_learnable`
 - `scaled_exact`
+- `same_axis_reupload`
 
 Rationale:
 
 - Start from the exact same-axis reuploading construction that is known to solve the task.
 - Relax one assumption at a time.
 - Avoid returning to the old projection-heavy baseline as the main search space, because that architecture was introduced as a generic guess rather than something implied by the problem structure.
+
+## 2026-04-06: Structured exact family converges cleanly, and a first generalized reuploading model preserves the right shape
+
+### 1. Exact-family sanity sweep at `e10`
+
+Tested settings:
+
+- `quantum_exact`, `q=1`, `l=1`
+- `phase_learnable`, `q=1`, `l=1`
+- `scaled_exact`, `q=1`, `l=1`
+
+Run names:
+
+- `quantum-exact-q1-l1-e10`
+- `phase-learnable-q1-l1-e10`
+- `scaled-exact-q1-l1-e10`
+
+Key metrics:
+
+- `quantum_exact` final test MSE: `7.345e-15`
+- `phase_learnable` final test MSE: `5.770e-11`
+- `scaled_exact` final test MSE: `2.055e-10`
+
+Interpretation:
+
+- The exact construction remains a clean proof that the target is solved by same-axis angle addition.
+- Letting the phase become learnable still converges back to the intended solution.
+- Letting both phase and feature scale/bias become learnable also converges, with only a modest loss in precision.
+
+Practical takeaway:
+
+- The structured ladder is behaving as intended.
+- Small relaxations of the exact circuit do not immediately destroy the solution.
+
+### 2. First generalized data-reuploading attempt
+
+Tested setting:
+
+- `same_axis_reupload`, `q=1`, `l=2`
+- circuit pattern per block: same-qubit `RY(exp(x1)) -> RY(x2) -> RY(phi)`
+- each block learns its own feature scale, feature bias, and phase shift
+
+Run name:
+
+- `same-axis-reupload-q1-l2-e10`
+
+Key metrics:
+
+- best test MSE: `4.910e-03`
+- final test MSE: `6.424e-03`
+- final train MSE: `6.792e-05`
+
+Observed behavior:
+
+- This model does not exact-fit the task the way the hand-crafted ladder does.
+- However, it clearly learns the right surface family rather than collapsing to a flat or unrelated shape.
+- The learned surface tracks the target curvature much better than the retired generic baseline.
+
+Interpretation:
+
+- Preserving same-qubit, same-axis additive structure appears to be the right inductive bias for this problem.
+- The first generalized reuploading model is already much closer to a meaningful data-reuploading solution than the old projection-heavy architecture.
+- The remaining error looks more like calibration or readout mismatch than a total failure to represent the correct geometry.
+
+Practical takeaway:
+
+- Keep `same_axis_reupload` as the main generalized branch.
+- Future relaxations should stay attached to this backbone rather than returning to the older generic ansatz family.
