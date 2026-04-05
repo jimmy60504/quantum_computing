@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-MLFLOW_BACKEND_STORE_URI="${MLFLOW_BACKEND_STORE_URI:-sqlite:///mlflow.db}"
+MLFLOW_BACKEND_STORE_URI="${MLFLOW_BACKEND_STORE_URI:-postgresql+psycopg://mlflow:mlflow@gx10-mlflow-postgres:5432/mlflow}"
 MLFLOW_HOST="${MLFLOW_HOST:-0.0.0.0}"
 MLFLOW_PORT="${MLFLOW_PORT:-5001}"
 GX10_WORKDIR="${GX10_WORKDIR:-/workspace}"
@@ -16,6 +16,7 @@ CPUSET="${GX10_CPUSET:-${GX10_LIGHT_CPUSET_DEFAULT}}"
 CPU_COUNT="${GX10_CPUS:-${GX10_LIGHT_CPUS_DEFAULT}}"
 
 exec docker run --rm \
+  --network gx10-mlflow \
   --cpuset-cpus "${CPUSET}" \
   --cpus "${CPU_COUNT}" \
   --user "$(id -u):$(id -g)" \

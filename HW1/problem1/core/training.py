@@ -57,7 +57,11 @@ def train(config: Config, num_samples: int) -> None:
     train_points = serialize_dataset_points(train_dataset)
     test_points = serialize_dataset_points(test_dataset)
     train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
+    test_loader = (
+        DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
+        if config.render_mode == "inline"
+        else None
+    )
 
     model = DataReuploadingRegressor(
         num_qubits=config.num_qubits,
@@ -201,6 +205,7 @@ def train(config: Config, num_samples: int) -> None:
 
             if config.render_mode == "inline":
                 train_mse = evaluate(model, train_loader, loss_fn)
+                assert test_loader is not None
                 test_mse = evaluate(model, test_loader, loss_fn)
                 epoch_summary["train_mse"] = train_mse
                 epoch_summary["test_mse"] = test_mse

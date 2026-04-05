@@ -1,13 +1,17 @@
 # Distributed Render Workflow
 
 This note describes a reusable pattern for training on one machine and
-rendering per-step viewer artifacts on one or more helper machines.
+rendering per-step viewer artifacts later from saved snapshots.
 
 ## Why this exists
 
 Some QML experiments are fast enough to train but slow to visualize because
 every saved step must rebuild a full prediction surface or heatmap. When the
 viewer needs every step, the render phase can dominate total runtime.
+
+For `HW1/problem1`, the tuned `gx10` single-machine path is now the default
+because it outperformed the earlier distributed helper setup. This note remains
+useful as a design reference and fallback pattern.
 
 The workflow here splits the job into four phases:
 
@@ -72,24 +76,12 @@ In `snapshots-only` mode the training loop no longer computes per-epoch
 train/test MSE inline. Those metrics are reconstructed later from the saved
 model states.
 
-### Mounting `gx10` data over `sshfs`
+### Optional helper-machine mount
 
-On a helper machine such as the Steam Deck:
-
-```bash
-mkdir -p ~/mnt
-./scripts/mount_remote_dir_sshfs.sh gx10 /home/jimmy/quantum_computing ~/mnt/gx10-quantum
-```
-
-Unmount when done:
-
-```bash
-./scripts/unmount_remote_dir.sh ~/mnt/gx10-quantum
-```
-
-This mount can be the entire repo, so the helper machine does not need a second
-copy of the codebase. In that setup, run the render script from the mounted repo
-and write chunk outputs to a local writable directory.
+If you ever do need helper machines again, mount the `gx10` repo manually with
+your preferred `sshfs` command or copy only the snapshot export plus repo code.
+The repository no longer ships dedicated mount helper scripts because the
+current default workflow does not need them.
 
 ### Evaluating metrics for a chunk
 
@@ -160,7 +152,7 @@ python3 HW1/problem1/tools/fourier_analysis.py \
 
 ## Safety rules
 
-- Treat the mounted `gx10` export directory as read-mostly.
+- Treat the shared snapshot export directory as read-mostly.
 - Let helper machines write chunk files, not the final viewer JSON.
 - Do the final merge on a single machine to avoid manifest or export conflicts.
 
@@ -171,7 +163,7 @@ If another problem needs per-step visual playback:
 1. Export step-local model state plus static plotting inputs.
 2. Implement a deterministic chunk renderer for one snapshot at a time.
 3. Add a cheap metrics-only pass when selection can be done without heatmaps.
-4. Reuse the same remote mount and chunk merge pattern.
+4. If helper machines are needed, keep merge as a single-machine step.
 
 The more the problem can separate immutable inputs from step-local state, the
 easier it is to fan render work out across multiple CPUs and machines.

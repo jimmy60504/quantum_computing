@@ -71,20 +71,6 @@ cd ~/quantum_computing
 ./scripts/gx10_aer_demo.sh
 ```
 
-Build the x86_64 CPU render-worker image for helper machines such as the Steam Deck:
-it uses a `python:3.12-slim-bookworm` base and installs a newer helper stack
-than the pinned local Conda environment.
-
-```bash
-./scripts/build_render_worker_x86_64.sh
-```
-
-Run a repository Python script inside that image:
-
-```bash
-./scripts/render_worker_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py --help
-```
-
 You can scale the demo circuit up when you want a heavier benchmark:
 
 ```bash
@@ -116,6 +102,8 @@ On `gx10`, the wrappers now default to a big-core / small-core split:
 - host-side viewer serving via `gx10_hf_viewer.sh` is pinned to the same small-core set
 
 You can override either wrapper at runtime with `GX10_CPUSET` and `GX10_CPUS`.
+If a `gx10` job needs to reach another containerized service such as MLflow,
+also set `GX10_DOCKER_NETWORK`.
 
 If you are working from your Mac and want to push the latest files to `gx10`:
 
@@ -150,6 +138,7 @@ The first image includes:
 - `qiskit==2.3.0`
 - `qiskit-machine-learning`
 - `pennylane`
+- `mlflow` plus the `psycopg` Postgres driver for remote tracking
 - the plotting and notebook-adjacent packages already used by this repository
 
 Note:
@@ -237,7 +226,23 @@ cd ~/quantum_computing
 ```
 
 This script now logs params, per-epoch MSE, and a loss-curve artifact to
-MLflow. By default it uses a local SQLite backend at `./mlflow.db`.
+MLflow. For parallel runs on `gx10`, the recommended setup is a local
+Postgres-backed MLflow server:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_mlflow_server.sh start
+```
+
+Then point training jobs at the server:
+
+```bash
+cd ~/quantum_computing
+GX10_DOCKER_NETWORK=gx10-mlflow \
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
+  --tracking-uri http://gx10-mlflow-server:5001
+```
+
 The sync helper excludes `mlflow.db`, `mlartifacts/`, and `HW1/artifacts/`
 because they are run outputs rather than source files.
 
@@ -308,7 +313,9 @@ python3 HW1/problem1/tools/fourier_analysis.py \
 ```
 
 See [kb/distributed_render_workflow.md](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/kb/distributed_render_workflow.md)
-for the `snapshot -> metrics -> render -> merge` workflow.
+for the snapshot-postprocess architecture note. The current default workflow is
+to keep both training and post-processing on `gx10` unless there is a specific
+need to fan work out to helper machines.
 
 ## Scaffold HW1 Problem 2
 
@@ -346,6 +353,14 @@ To inspect the runs on `gx10`:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_mlflow_ui.sh
+```
+
+To check the Postgres-backed tracking service itself:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_mlflow_server.sh status
+./scripts/gx10_mlflow_server.sh logs
 ```
 
 ## Hugging Face static viewer
