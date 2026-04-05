@@ -71,6 +71,18 @@ cd ~/quantum_computing
 ./scripts/gx10_aer_demo.sh
 ```
 
+Build the x86_64 CPU render-worker image for helper machines such as the Steam Deck:
+
+```bash
+./scripts/build_render_worker_x86_64.sh
+```
+
+Run a repository Python script inside that image:
+
+```bash
+./scripts/render_worker_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py --help
+```
+
 You can scale the demo circuit up when you want a heavier benchmark:
 
 ```bash
@@ -90,7 +102,7 @@ Wrapper scripts are also available for common `gx10` tasks:
 ./scripts/sync_to_gx10.sh
 ssh gx10
 cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1/sample.py
+./scripts/gx10_run_py.sh HW1/problem1/core/sample.py
 ./scripts/gx10_run_py.sh pennylane_hello.py
 GX10_IMAGE=quantum-gx10:aer-gpu ./scripts/gx10_run_py.sh qiskit_aer_gpu_demo.py
 ```
@@ -106,7 +118,7 @@ Then on `gx10`:
 ```bash
 ssh gx10
 cd ~/quantum_computing
-./scripts/gx10_run_py.sh HW1/problem1/sample.py
+./scripts/gx10_run_py.sh HW1/problem1/core/sample.py
 ```
 
 Open a shell in the container with the repo mounted:
@@ -238,6 +250,20 @@ cd ~/quantum_computing
   --num-qubits 2 \
   --num-layers 2
 ```
+
+If you want to keep every step but offload rendering to helper machines, the
+Problem 1 training script also supports snapshot export mode:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
+  --render-mode snapshots-only \
+  --viewer-export-every 1 \
+  --run-name raw-q2-l2-e20
+```
+
+See [kb/distributed_render_workflow.md](/Users/jimmy/Library/CloudStorage/OneDrive-Personal/Code/quantum_computing/kb/distributed_render_workflow.md)
+for the `sshfs + chunk render + merge` workflow.
 
 ## Scaffold HW1 Problem 2
 

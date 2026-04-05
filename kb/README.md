@@ -8,6 +8,7 @@
 - `directions/`：特定方向的詳細筆記
 - `experiment_plans.md`：實驗規劃區（目前先暫停使用）
 - `compute_hosts.md`：遠端主機與運算環境筆記
+- `distributed_render_workflow.md`：多機分散 render workflow 筆記
 - `qml_stack_notes.md`：QML 框架定位與未來 image 策略
 - `source_hygiene.md`：研究素材中的 prompt injection 與來源清理筆記
 - `templates/research_direction_template.md`：研究方向模板

@@ -1,5 +1,8 @@
 """Visualize the QCAA HW1 Problem 1 data ranges and target function."""
 
+from __future__ import annotations
+
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -7,11 +10,12 @@ import numpy as np
 import torch
 
 try:
-    from .sample import NUM_SAMPLES, SEED, sample_inputs, target_function
+    from ..core.sample import NUM_SAMPLES, SEED, sample_inputs, target_function
 except ImportError:  # pragma: no cover - direct script execution
-    from sample import NUM_SAMPLES, SEED, sample_inputs, target_function
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    from core.sample import NUM_SAMPLES, SEED, sample_inputs, target_function
 
-OUTPUT_PATH = Path(__file__).with_name("assets") / "problem1_data_overview.png"
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / "assets" / "problem1_data_overview.png"
 
 
 def main() -> None:
