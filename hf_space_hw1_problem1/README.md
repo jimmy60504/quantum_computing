@@ -1,8 +1,8 @@
 ---
 title: HW1 QML Viewer
 emoji: 📈
-colorFrom: amber
-colorTo: teal
+colorFrom: yellow
+colorTo: green
 sdk: static
 pinned: false
 ---
