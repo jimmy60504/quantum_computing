@@ -11,7 +11,17 @@ import numpy as np
 
 TRAIN_RANGES = np.array([0.0, 0.5] * 2).reshape(2, 2)
 TEST_RANGES = np.array([0.5, 1.0] * 2).reshape(2, 2)
-ENCODING_CHOICES = ("raw", "poly", "exp")
+ENCODING_CHOICES = (
+    "raw",
+    "poly",
+    "exp",
+    "exp_aug",
+    "exp_sum",
+    "oracle_shortcut",
+    "quantum_exact",
+)
+INPUT_ACTIVATION_CHOICES = ("tanh", "identity")
+LR_SCHEDULER_CHOICES = ("none", "cosine")
 RENDER_MODE_CHOICES = ("inline", "snapshots-only")
 
 
@@ -24,7 +34,11 @@ class Config:
     batch_size: int = 64
     epochs: int = 5
     learning_rate: float = 0.03
+    lr_scheduler: str = "none"
+    min_learning_rate: float = 0.0
     hidden_scale: float = 1.0
+    input_activation: str = "tanh"
+    angle_scale: float = 1.0
     heatmap_grid_size: int = 64
     device_name: str = "lightning.qubit"
     diff_method: str | None = None
@@ -78,6 +92,8 @@ def make_default_export_stem(config: Config) -> str:
     return slugify(
         (
             f"{config.encoding_mode}-q{config.num_qubits}-l{config.num_layers}-"
+            f"act{config.input_activation}-as{config.angle_scale:g}-"
+            f"sched{config.lr_scheduler}-minlr{config.min_learning_rate:g}-"
             f"{config.device_name}-{config.diff_method}-"
             f"lr{config.learning_rate}-b{config.batch_size}-e{config.epochs}"
         )
@@ -107,7 +123,11 @@ def config_from_render_config(render_config: dict[str, object]) -> Config:
         num_qubits=int(render_config["num_qubits"]),
         num_layers=int(render_config["num_layers"]),
         encoding_mode=str(render_config["encoding_mode"]),
+        lr_scheduler=str(render_config.get("lr_scheduler", "none")),
+        min_learning_rate=float(render_config.get("min_learning_rate", 0.0)),
         hidden_scale=float(render_config["hidden_scale"]),
+        input_activation=str(render_config.get("input_activation", "tanh")),
+        angle_scale=float(render_config.get("angle_scale", 1.0)),
         heatmap_grid_size=int(render_config["heatmap_grid_size"]),
         batch_size=int(render_config["batch_size"]),
         device_name=str(render_config["device_name"]),

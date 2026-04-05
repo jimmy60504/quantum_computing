@@ -20,6 +20,11 @@ VIEWER_EXPORT_EVERY="${HW1_PIPELINE_VIEWER_EXPORT_EVERY:-1}"
 TRAIN_NUM_SAMPLES="${HW1_PIPELINE_NUM_SAMPLES:-1000}"
 TRAIN_BATCH_SIZE="${HW1_PIPELINE_BATCH_SIZE:-64}"
 TRAIN_HEATMAP_GRID_SIZE="${HW1_PIPELINE_HEATMAP_GRID_SIZE:-64}"
+TRAIN_LR_SCHEDULER="${HW1_PIPELINE_LR_SCHEDULER:-none}"
+TRAIN_MIN_LR="${HW1_PIPELINE_MIN_LR:-0.0}"
+TRAIN_INPUT_ACTIVATION="${HW1_PIPELINE_INPUT_ACTIVATION:-tanh}"
+TRAIN_ANGLE_SCALE="${HW1_PIPELINE_ANGLE_SCALE:-1.0}"
+RUN_TAG="${HW1_PIPELINE_RUN_TAG:-}"
 RENDER_WORKERS="${HW1_PIPELINE_RENDER_WORKERS:-20}"
 RENDER_CPUSET="${HW1_PIPELINE_RENDER_CPUSET:-0-19}"
 RENDER_CPUS="${HW1_PIPELINE_RENDER_CPUS:-20}"
@@ -39,7 +44,11 @@ run_case() {
   local encoding="$1"
   local qubits="$2"
   local layers="$3"
-  local run_name="${encoding}-q${qubits}-l${layers}-e${EPOCHS}"
+  local angle_scale_tag="${TRAIN_ANGLE_SCALE//./p}"
+  local run_name="${encoding}-q${qubits}-l${layers}-act${TRAIN_INPUT_ACTIVATION}-as${angle_scale_tag}-e${EPOCHS}"
+  if [[ -n "${RUN_TAG}" ]]; then
+    run_name="${run_name}-${RUN_TAG}"
+  fi
   local snapshot_export="hf_space_hw1_problem1/runtime/${run_name}_snapshots.json"
   local viewer_export="hf_space_hw1_problem1/runtime/${run_name}.json"
   local case_log="${RUN_LOG_DIR}/${run_name}.log"
@@ -64,6 +73,10 @@ run_case() {
         --num-qubits "${qubits}" \
         --num-layers "${layers}" \
         --epochs "${EPOCHS}" \
+        --lr-scheduler "${TRAIN_LR_SCHEDULER}" \
+        --min-learning-rate "${TRAIN_MIN_LR}" \
+        --input-activation "${TRAIN_INPUT_ACTIVATION}" \
+        --angle-scale "${TRAIN_ANGLE_SCALE}" \
         --device "${TRAIN_DEVICE}" \
         --diff-method "${TRAIN_DIFF_METHOD}" \
         --render-mode snapshots-only \
@@ -132,6 +145,10 @@ main() {
   echo "tracking_uri=${TRACKING_URI}"
   echo "experiment_name=${EXPERIMENT_NAME}"
   echo "epochs=${EPOCHS}"
+  echo "lr_scheduler=${TRAIN_LR_SCHEDULER}"
+  echo "min_lr=${TRAIN_MIN_LR}"
+  echo "input_activation=${TRAIN_INPUT_ACTIVATION}"
+  echo "angle_scale=${TRAIN_ANGLE_SCALE}"
   echo "train_backend=${TRAIN_DEVICE}+${TRAIN_DIFF_METHOD}"
   echo "render_backend=${RENDER_DEVICE}+${RENDER_DIFF_METHOD}"
   echo "render_workers=${RENDER_WORKERS}"

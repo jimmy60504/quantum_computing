@@ -1,7 +1,6 @@
 """Training pipeline for HW1 Problem 1."""
 
 from __future__ import annotations
-
 from pathlib import Path
 
 import mlflow
@@ -50,6 +49,30 @@ except ImportError:  # pragma: no cover - direct script execution on gx10
     from viewer_io import update_viewer_manifest, write_snapshot_export, write_viewer_export
 
 
+def build_lr_scheduler(
+    config: Config,
+    optimizer: torch.optim.Optimizer,
+    steps_per_epoch: int,
+) -> torch.optim.lr_scheduler.LRScheduler | None:
+    if config.lr_scheduler == "none":
+        return None
+
+    if config.lr_scheduler == "cosine":
+        total_steps = max(1, config.epochs * steps_per_epoch)
+        if config.min_learning_rate > config.learning_rate:
+            raise ValueError(
+                "min_learning_rate must be less than or equal to learning_rate "
+                f"(got {config.min_learning_rate} > {config.learning_rate})."
+            )
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=total_steps,
+            eta_min=config.min_learning_rate,
+        )
+
+    raise ValueError(f"Unsupported lr scheduler: {config.lr_scheduler}")
+
+
 def train(config: Config, num_samples: int) -> None:
     torch.manual_seed(SEED)
 
@@ -68,10 +91,13 @@ def train(config: Config, num_samples: int) -> None:
         num_layers=config.num_layers,
         encoding_mode=config.encoding_mode,
         hidden_scale=config.hidden_scale,
+        input_activation=config.input_activation,
+        angle_scale=config.angle_scale,
         device_name=config.device_name,
         diff_method=config.diff_method or resolve_diff_method(config.device_name, None),
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    scheduler = build_lr_scheduler(config, optimizer, len(train_loader))
     loss_fn = nn.MSELoss()
     trainable_parameters = sum(parameter.numel() for parameter in model.parameters())
     loss_history: list[dict[str, float]] = []
@@ -87,7 +113,9 @@ def train(config: Config, num_samples: int) -> None:
         f"seed={SEED} samples={num_samples} qubits={config.num_qubits} "
         f"layers={config.num_layers} encoding={config.encoding_mode} "
         f"batch_size={config.batch_size} "
-        f"epochs={config.epochs} lr={config.learning_rate}",
+        f"epochs={config.epochs} lr={config.learning_rate} "
+        f"scheduler={config.lr_scheduler} min_lr={config.min_learning_rate:g} "
+        f"activation={config.input_activation} angle_scale={config.angle_scale:g}",
         flush=True,
     )
     print(f"device={config.device_name} diff_method={config.diff_method}", flush=True)
@@ -111,7 +139,11 @@ def train(config: Config, num_samples: int) -> None:
                 "batch_size": config.batch_size,
                 "epochs": config.epochs,
                 "learning_rate": config.learning_rate,
+                "lr_scheduler": config.lr_scheduler,
+                "min_learning_rate": config.min_learning_rate,
                 "hidden_scale": config.hidden_scale,
+                "input_activation": config.input_activation,
+                "angle_scale": config.angle_scale,
                 "heatmap_grid_size": config.heatmap_grid_size,
                 "device_name": config.device_name,
                 "diff_method": config.diff_method,
@@ -181,11 +213,18 @@ def train(config: Config, num_samples: int) -> None:
                 loss = loss_fn(predictions, labels)
                 loss.backward()
                 optimizer.step()
+                if scheduler is not None:
+                    scheduler.step()
                 global_step += 1
                 batch_loss = float(loss.item())
+                current_lr = float(optimizer.param_groups[0]["lr"])
                 last_batch_index = batch_index
                 last_batch_loss = batch_loss
-                progress.set_postfix(batch_loss=format_metric(batch_loss), refresh=True)
+                progress.set_postfix(
+                    batch_loss=format_metric(batch_loss),
+                    lr=format_metric(current_lr),
+                    refresh=True,
+                )
 
                 if global_step % config.viewer_export_every == 0:
                     epoch_snapshots.append(
@@ -195,15 +234,18 @@ def train(config: Config, num_samples: int) -> None:
                             "batch": batch_index,
                             "global_step": global_step,
                             "batch_loss": batch_loss,
+                            "learning_rate": current_lr,
                             "model_state": snapshot_model_state(model),
                         }
                     )
                     mlflow.log_metric("batch_loss", batch_loss, step=global_step)
+                    mlflow.log_metric("learning_rate", current_lr, step=global_step)
 
             epoch_summary: dict[str, float] = {
                 "epoch": float(epoch),
                 "global_step": float(global_step),
                 "last_batch_loss": last_batch_loss,
+                "learning_rate": float(optimizer.param_groups[0]["lr"]),
             }
 
             if config.render_mode == "inline":
@@ -226,6 +268,7 @@ def train(config: Config, num_samples: int) -> None:
                         "batch": last_batch_index,
                         "global_step": global_step,
                         "batch_loss": last_batch_loss,
+                        "learning_rate": float(optimizer.param_groups[0]["lr"]),
                         "model_state": snapshot_model_state(model),
                     }
                 )
@@ -277,12 +320,15 @@ def train(config: Config, num_samples: int) -> None:
 
             if config.render_mode == "inline" and (epoch == 1 or epoch % 5 == 0 or epoch == config.epochs):
                 print(
-                    f"epoch={epoch:02d} train_mse={format_metric(train_mse)} test_mse={format_metric(test_mse)}",
+                    f"epoch={epoch:02d} train_mse={format_metric(train_mse)} "
+                    f"test_mse={format_metric(test_mse)} "
+                    f"lr={format_metric(float(optimizer.param_groups[0]['lr']))}",
                     flush=True,
                 )
             elif epoch == 1 or epoch % 5 == 0 or epoch == config.epochs:
                 print(
-                    f"epoch={epoch:02d} last_batch_loss={format_metric(last_batch_loss)}",
+                    f"epoch={epoch:02d} last_batch_loss={format_metric(last_batch_loss)} "
+                    f"lr={format_metric(float(optimizer.param_groups[0]['lr']))}",
                     flush=True,
                 )
 

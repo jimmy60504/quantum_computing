@@ -8,6 +8,8 @@ try:
     from .core.config import (
         Config,
         ENCODING_CHOICES,
+        INPUT_ACTIVATION_CHOICES,
+        LR_SCHEDULER_CHOICES,
         RENDER_MODE_CHOICES,
         resolve_diff_method,
         validate_device_config,
@@ -18,6 +20,8 @@ except ImportError:  # pragma: no cover - direct script execution on gx10
     from core.config import (
         Config,
         ENCODING_CHOICES,
+        INPUT_ACTIVATION_CHOICES,
+        LR_SCHEDULER_CHOICES,
         RENDER_MODE_CHOICES,
         resolve_diff_method,
         validate_device_config,
@@ -47,7 +51,33 @@ def parse_args() -> tuple[Config, int]:
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--learning-rate", type=float, default=0.03)
+    parser.add_argument(
+        "--lr-scheduler",
+        type=str,
+        default="none",
+        choices=LR_SCHEDULER_CHOICES,
+        help="Learning-rate schedule applied during training.",
+    )
+    parser.add_argument(
+        "--min-learning-rate",
+        type=float,
+        default=0.0,
+        help="Final learning rate used by schedulers that decay over time.",
+    )
     parser.add_argument("--hidden-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--input-activation",
+        type=str,
+        default="tanh",
+        choices=INPUT_ACTIVATION_CHOICES,
+        help="Nonlinearity applied after the classical projection and before angle scaling.",
+    )
+    parser.add_argument(
+        "--angle-scale",
+        type=float,
+        default=1.0,
+        help="Multiplicative scale applied to projected angles before the quantum circuit.",
+    )
     parser.add_argument("--heatmap-grid-size", type=int, default=64)
     parser.add_argument(
         "--device",
@@ -81,7 +111,11 @@ def parse_args() -> tuple[Config, int]:
         batch_size=args.batch_size,
         epochs=args.epochs,
         learning_rate=args.learning_rate,
+        lr_scheduler=args.lr_scheduler,
+        min_learning_rate=args.min_learning_rate,
         hidden_scale=args.hidden_scale,
+        input_activation=args.input_activation,
+        angle_scale=args.angle_scale,
         heatmap_grid_size=args.heatmap_grid_size,
         device_name=args.device,
         diff_method=diff_method,
