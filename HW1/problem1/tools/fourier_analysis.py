@@ -49,6 +49,26 @@ def load_test_heatmaps(viewer_export_path: Path) -> tuple[dict, dict]:
 
     final_step = timeline_steps[-1]
     test_heatmaps = final_step.get("heatmaps", {}).get("test")
+    if not test_heatmaps and final_step.get("chunk_path"):
+        raw_chunk_path = Path(final_step["chunk_path"])
+        candidate_paths = []
+        if raw_chunk_path.is_absolute():
+            candidate_paths.append(raw_chunk_path)
+        else:
+            candidate_paths.append((viewer_export_path.parent.parent / raw_chunk_path).resolve())
+            candidate_paths.append((viewer_export_path.parent / raw_chunk_path.name).resolve())
+            candidate_paths.append(raw_chunk_path.resolve())
+        chunk_path = next((path for path in candidate_paths if path.exists()), None)
+        if chunk_path is None:
+            raise FileNotFoundError(
+                f"{viewer_export_path} points to missing chunk file {raw_chunk_path}."
+            )
+        chunk_payload = json.loads(chunk_path.read_text())
+        chunk_steps = chunk_payload.get("timeline_steps", [])
+        if not chunk_steps:
+            raise ValueError(f"{chunk_path} does not contain any timeline steps.")
+        final_step = chunk_steps[-1]
+        test_heatmaps = final_step.get("heatmaps", {}).get("test")
     if not test_heatmaps:
         raise ValueError(f"{viewer_export_path} is missing test heatmaps in the final timeline step.")
 

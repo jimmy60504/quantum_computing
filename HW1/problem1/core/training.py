@@ -323,16 +323,22 @@ def train(config: Config, num_samples: int) -> None:
                 )
 
             if config.render_mode == "inline" and (epoch == 1 or epoch % 5 == 0 or epoch == config.epochs):
+                current_epoch_lr = (
+                    float(optimizer.param_groups[0]["lr"]) if optimizer is not None else 0.0
+                )
                 print(
                     f"epoch={epoch:02d} train_mse={format_metric(train_mse)} "
                     f"test_mse={format_metric(test_mse)} "
-                    f"lr={format_metric(float(optimizer.param_groups[0]['lr']))}",
+                    f"lr={format_metric(current_epoch_lr)}",
                     flush=True,
                 )
             elif epoch == 1 or epoch % 5 == 0 or epoch == config.epochs:
+                current_epoch_lr = (
+                    float(optimizer.param_groups[0]["lr"]) if optimizer is not None else 0.0
+                )
                 print(
                     f"epoch={epoch:02d} last_batch_loss={format_metric(last_batch_loss)} "
-                    f"lr={format_metric(float(optimizer.param_groups[0]['lr']))}",
+                    f"lr={format_metric(current_epoch_lr)}",
                     flush=True,
                 )
 

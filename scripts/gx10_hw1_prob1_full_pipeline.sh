@@ -39,7 +39,8 @@ run_case() {
   local encoding="$1"
   local qubits="$2"
   local layers="$3"
-  local run_name="${encoding}-q${qubits}-l${layers}-e${EPOCHS}"
+  local run_slug="${encoding//_/-}"
+  local run_name="${run_slug}-q${qubits}-l${layers}-e${EPOCHS}"
   if [[ -n "${RUN_TAG}" ]]; then
     run_name="${run_name}-${RUN_TAG}"
   fi
