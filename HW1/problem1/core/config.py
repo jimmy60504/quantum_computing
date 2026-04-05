@@ -13,9 +13,14 @@ TRAIN_RANGES = np.array([0.0, 0.5] * 2).reshape(2, 2)
 TEST_RANGES = np.array([0.5, 1.0] * 2).reshape(2, 2)
 ENCODING_CHOICES = (
     "quantum_exact",
+    "twoqubit_no_reupload",
+    "twoqubit_raw_no_reupload",
     "phase_learnable",
     "scaled_exact",
     "same_axis_reupload",
+    "same_axis_raw",
+    "same_axis_twoqubit",
+    "same_axis_poly",
     "same_axis_rot",
 )
 LR_SCHEDULER_CHOICES = ("none", "cosine")

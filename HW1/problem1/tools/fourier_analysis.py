@@ -185,8 +185,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("HW1") / "problem1" / "artifacts",
-        help="Directory for the Fourier analysis outputs.",
+        default=None,
+        help="Directory for the Fourier analysis outputs. Defaults to the viewer export directory.",
     )
     parser.add_argument(
         "--top-k",
@@ -201,6 +201,7 @@ def main() -> None:
     args = build_parser().parse_args()
     viewer_export_path = args.viewer_export or resolve_default_export_path()
     payload, test_heatmaps = load_test_heatmaps(viewer_export_path)
+    output_dir = args.output_dir or viewer_export_path.parent
 
     run_label = payload.get("run", {}).get("name", viewer_export_path.stem)
     target = test_heatmaps["target"]
@@ -214,9 +215,9 @@ def main() -> None:
     freq_x, freq_y, target_magnitude = compute_spectrum(target_grid, x, y)
     _, _, prediction_magnitude = compute_spectrum(prediction_grid, x, y)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    figure_path = args.output_dir / f"{viewer_export_path.stem}_fourier_spectrum.png"
-    summary_path = args.output_dir / f"{viewer_export_path.stem}_fourier_summary.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    figure_path = output_dir / f"{viewer_export_path.stem}_fourier_spectrum.png"
+    summary_path = output_dir / f"{viewer_export_path.stem}_fourier_summary.json"
 
     make_figure(
         target_grid,

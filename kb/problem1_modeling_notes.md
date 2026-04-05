@@ -228,3 +228,152 @@ Practical takeaway:
 
 - Keep `same_axis_reupload` as the main generalized branch.
 - Future relaxations should stay attached to this backbone rather than returning to the older generic ansatz family.
+
+## 2026-04-06: Relaxing the exact backbone shows where the hard part really is
+
+After confirming that the structured exact family works, the next question was how to relax the model toward a more general data-reuploading design without losing the problem-aligned backbone.
+
+### 1. Learning `exp(x1)` is harder than preserving the same-axis geometry
+
+Tested settings:
+
+- `same_axis_poly`, `q=1`, `l=2`
+- `same_axis_raw`, `q=1`, `l=2`
+
+Run names:
+
+- `same-axis-poly-q1-l2-e10`
+- `same-axis-raw-q1-l2-e10`
+
+Key metrics:
+
+- `same_axis_poly` best test MSE: `2.884e-02`
+- `same_axis_poly` final test MSE: `1.577e-01`
+- `same_axis_raw` best test MSE: `3.217e-02`
+- `same_axis_raw` final test MSE: `1.296e-01`
+
+Interpretation:
+
+- Both models keep the same-qubit, same-axis additive backbone, so they still move in a visibly meaningful direction rather than collapsing to an unrelated surface.
+- However, once the hand-crafted `exp(x1)` feature is removed or replaced by a learned low-order proxy, performance drops substantially relative to `same_axis_reupload`.
+- This suggests the main challenge is no longer "can the circuit express the right type of geometry?" but rather "can the model discover the right nonlinear transformation of `x1` on its own?"
+
+Practical takeaway:
+
+- The same-axis backbone remains the right structural prior.
+- Learning the inner `exp(x1)` transformation from weaker priors is possible in spirit, but clearly harder and less stable than giving the model the right feature directly.
+- Future relaxation steps should treat "recovering `exp(x1)`" as the main difficulty, not same-axis composition itself.
+
+### 2. A second qubit does not automatically help if it breaks the main structural story
+
+Tested setting:
+
+- `same_axis_twoqubit`, `q=2`, `l=2`
+
+Run name:
+
+- `same-axis-twoqubit-q2-l2-e10`
+
+Key metrics:
+
+- best test MSE: `6.953e-02`
+- final test MSE: `1.312e-01`
+- final train MSE: `4.125e-04`
+
+Interpretation:
+
+- This design keeps a same-axis main path on `q0` and uses `q1` as a residual path.
+- The extra qubit lowers train error, but it does not improve generalization over the simpler 1-qubit raw same-axis model.
+- In other words, extra capacity alone is not the missing ingredient here.
+
+Practical takeaway:
+
+- Do not assume "more qubits" is automatically the next step toward a better Problem 1 model.
+- A second qubit is only useful if it preserves or sharpens the right compositional structure.
+
+### 3. Two-qubit exact composition works without reupload if the right feature is provided
+
+Tested setting:
+
+- `twoqubit_no_reupload`, `q=2`, `l=1`
+
+Run name:
+
+- `twoqubit-no-reupload-q2-l1-e1`
+
+Construction idea:
+
+- encode `exp(x1)` on `q0`
+- encode `x2` on `q1`
+- do not use data reuploading
+- read out `⟨X0 Z1⟩` and `⟨Z0 X1⟩`
+- sum the two observables to realize the sine angle-addition identity
+
+Key metrics:
+
+- best test MSE: `5.907e-15`
+- final train MSE: `1.055e-15`
+- final test MSE: `5.907e-15`
+
+Interpretation:
+
+- Problem 1 does not require data reuploading in an absolute sense.
+- A 2-qubit circuit can solve the task exactly in one shot if it is given the right intermediate feature, namely `exp(x1)`.
+- The hard part is therefore not "1 qubit versus 2 qubits" or "reupload versus no reupload" by itself.
+- The hard part is whether the model has access to the right inner representation before composing it with `x2`.
+
+Practical takeaway:
+
+- Treat this result as an exact constructive counterexample to the idea that repeated reuploading is the only way to solve the task quantumly.
+- Keep the focus on how the architecture represents `exp(x1)`, not only on qubit count.
+
+### 4. Entanglement plus raw inputs is still not enough in the minimal 2-qubit no-reupload setting
+
+Tested setting:
+
+- `twoqubit_raw_no_reupload`, `q=2`, `l=1`
+
+Run name:
+
+- `twoqubit-raw-no-reupload-q2-l1-e10`
+
+Construction idea:
+
+- encode raw `x1` and `x2` once
+- add one entangling `CNOT`
+- follow with a small trainable rotation block and mixed two-body readout
+
+Key metrics:
+
+- best test MSE: `2.028e-01`
+- final test MSE: `2.908e-01`
+- final train MSE: `3.630e-03`
+
+Interpretation:
+
+- This model does learn something, so the entangling path is not completely degenerate.
+- However, it is clearly worse than the 1-qubit same-axis raw model and much worse than the feature-aware exact 2-qubit construction.
+- A small entangling block is therefore not enough to make the model infer the missing `exp(x1)` structure from raw inputs in one shot.
+
+Practical takeaway:
+
+- "Just add entanglement" is not a sufficient answer for Problem 1.
+- If raw inputs are used without reuploading, the main missing capability is still the discovery of the nonlinear inner feature, not merely variable interaction.
+
+## Updated working picture
+
+The current modeling picture is:
+
+- `same_axis_reupload` shows that preserving same-axis additive composition is the right generalized 1-qubit backbone.
+- `same_axis_poly` and `same_axis_raw` show that relaxing the explicit `exp(x1)` prior is possible, but this is now the dominant source of error.
+- `same_axis_twoqubit` shows that extra capacity does not help by itself.
+- `twoqubit_no_reupload` shows that 2 qubits can solve the task exactly without reuploading if the right feature is already available.
+- `twoqubit_raw_no_reupload` shows that a minimal entangling ansatz on raw inputs does not yet recover that feature.
+
+The most important conclusion is that the central modeling problem has become:
+
+- how to let the model recover or approximate `exp(x1)` while preserving a composition rule that still combines cleanly with `x2`
+
+rather than:
+
+- whether the circuit needs more generic freedom in an unconstrained sense.

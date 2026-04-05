@@ -26,6 +26,30 @@ function getChunkPaths(data) {
     return (data.timeline_chunks || []).map((chunk) => chunk.path).filter(Boolean);
 }
 
+function setImageSourceWithFallback(imageElement, candidatePaths) {
+    if (!imageElement) {
+        return;
+    }
+
+    const candidates = candidatePaths.filter(Boolean);
+    if (!candidates.length) {
+        imageElement.removeAttribute("src");
+        return;
+    }
+
+    let index = 0;
+    imageElement.onerror = () => {
+        index += 1;
+        if (index >= candidates.length) {
+            imageElement.onerror = null;
+            imageElement.removeAttribute("src");
+            return;
+        }
+        imageElement.src = withCacheBust(candidates[index]);
+    };
+    imageElement.src = withCacheBust(candidates[index]);
+}
+
 function updatePrefetchProgress(completed, total) {
     if (!total) {
         return;
@@ -323,11 +347,14 @@ async function applyRun(runId) {
     runNote.textContent = `Loaded ${selectedRun.label} with ${selectedRun.steps} exported steps.`;
     renderResultsTable(state.currentManifest.runs || [], selectedRun.id);
     if (overviewImage) {
-        overviewImage.src = withCacheBust(state.currentData.assets.data_overview);
+        setImageSourceWithFallback(overviewImage, [state.currentData.assets.data_overview]);
     }
-    circuitImage.src = withCacheBust(state.currentData.assets.circuit);
+    setImageSourceWithFallback(circuitImage, [state.currentData.assets.circuit]);
     if (fourierImage) {
-        fourierImage.src = withCacheBust(`./runtime/${selectedRun.id}_fourier_spectrum.png`);
+        setImageSourceWithFallback(fourierImage, [
+            `./runtime/${selectedRun.id}_fourier_spectrum.png`,
+            `./HW1/problem1/artifacts/${selectedRun.id}_fourier_spectrum.png`,
+        ]);
     }
     populateExperimentMeta(state.currentData, selectedRun);
 

@@ -28,9 +28,14 @@ _RENDER_CONTEXT: dict[str, object] | None = None
 def encoded_feature_dim(encoding_mode: str) -> int:
     if encoding_mode in (
         "quantum_exact",
+        "twoqubit_no_reupload",
+        "twoqubit_raw_no_reupload",
         "phase_learnable",
         "scaled_exact",
         "same_axis_reupload",
+        "same_axis_raw",
+        "same_axis_twoqubit",
+        "same_axis_poly",
         "same_axis_rot",
     ):
         return 2
@@ -43,12 +48,21 @@ def encode_features(x: torch.Tensor, encoding_mode: str) -> torch.Tensor:
 
     if encoding_mode in (
         "quantum_exact",
+        "twoqubit_no_reupload",
         "phase_learnable",
         "scaled_exact",
         "same_axis_reupload",
         "same_axis_rot",
     ):
         return torch.cat([torch.exp(x1), x2], dim=1)
+
+    if encoding_mode in (
+        "twoqubit_raw_no_reupload",
+        "same_axis_raw",
+        "same_axis_twoqubit",
+        "same_axis_poly",
+    ):
+        return torch.cat([x1, x2], dim=1)
 
     raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
 
@@ -80,26 +94,59 @@ class DataReuploadingRegressor(nn.Module):
         self.num_layers = num_layers
         self.encoding_mode = encoding_mode
         self.use_quantum_exact = encoding_mode == "quantum_exact"
+        self.use_twoqubit_no_reupload = encoding_mode == "twoqubit_no_reupload"
+        self.use_twoqubit_raw_no_reupload = encoding_mode == "twoqubit_raw_no_reupload"
         self.use_phase_learnable = encoding_mode == "phase_learnable"
         self.use_scaled_exact = encoding_mode == "scaled_exact"
         self.use_same_axis_reupload = encoding_mode == "same_axis_reupload"
+        self.use_same_axis_raw = encoding_mode == "same_axis_raw"
+        self.use_same_axis_twoqubit = encoding_mode == "same_axis_twoqubit"
+        self.use_same_axis_poly = encoding_mode == "same_axis_poly"
         self.use_same_axis_rot = encoding_mode == "same_axis_rot"
         self.device_name = device_name
         self.diff_method = diff_method
 
         if encoding_mode not in (
             "quantum_exact",
+            "twoqubit_no_reupload",
+            "twoqubit_raw_no_reupload",
             "phase_learnable",
             "scaled_exact",
             "same_axis_reupload",
+            "same_axis_raw",
+            "same_axis_twoqubit",
+            "same_axis_poly",
             "same_axis_rot",
         ):
             raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
-        if num_qubits != 1:
+        if self.use_twoqubit_raw_no_reupload and num_qubits != 2:
+            raise ValueError(f"{encoding_mode} mode requires num_qubits=2.")
+        if self.use_twoqubit_no_reupload and num_qubits != 2:
+            raise ValueError(f"{encoding_mode} mode requires num_qubits=2.")
+        if self.use_same_axis_twoqubit and num_qubits != 2:
+            raise ValueError(f"{encoding_mode} mode requires num_qubits=2.")
+        if (
+            not self.use_same_axis_twoqubit
+            and not self.use_twoqubit_no_reupload
+            and not self.use_twoqubit_raw_no_reupload
+            and num_qubits != 1
+        ):
             raise ValueError(f"{encoding_mode} mode requires num_qubits=1.")
-        if not (self.use_same_axis_reupload or self.use_same_axis_rot) and num_layers != 1:
+        if not (
+            self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
+        ) and num_layers != 1:
             raise ValueError(f"{encoding_mode} mode requires num_layers=1.")
-        if (self.use_same_axis_reupload or self.use_same_axis_rot) and num_layers < 1:
+        if (
+            self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
+        ) and num_layers < 1:
             raise ValueError(f"{encoding_mode} requires num_layers >= 1.")
 
         self.phase_shift = (
@@ -129,27 +176,107 @@ class DataReuploadingRegressor(nn.Module):
         )
         self.phase_shifts = (
             nn.Parameter(torch.full((num_layers,), -np.pi / 2.0, dtype=torch.float32))
-            if self.use_same_axis_reupload or self.use_same_axis_rot
+            if self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
             else None
         )
         self.exp_scales = (
             nn.Parameter(torch.ones(num_layers, dtype=torch.float32))
-            if self.use_same_axis_reupload or self.use_same_axis_rot
+            if self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
             else None
         )
         self.exp_biases = (
             nn.Parameter(torch.zeros(num_layers, dtype=torch.float32))
-            if self.use_same_axis_reupload or self.use_same_axis_rot
+            if self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
             else None
         )
         self.x2_scales = (
             nn.Parameter(torch.ones(num_layers, dtype=torch.float32))
-            if self.use_same_axis_reupload or self.use_same_axis_rot
+            if self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
             else None
         )
         self.x2_biases = (
             nn.Parameter(torch.zeros(num_layers, dtype=torch.float32))
-            if self.use_same_axis_reupload or self.use_same_axis_rot
+            if self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
+            else None
+        )
+        self.residual_phase_shifts = (
+            nn.Parameter(torch.zeros(num_layers, dtype=torch.float32))
+            if self.use_same_axis_twoqubit
+            else None
+        )
+        self.residual_exp_scales = (
+            nn.Parameter(torch.ones(num_layers, dtype=torch.float32))
+            if self.use_same_axis_twoqubit
+            else None
+        )
+        self.residual_exp_biases = (
+            nn.Parameter(torch.zeros(num_layers, dtype=torch.float32))
+            if self.use_same_axis_twoqubit
+            else None
+        )
+        self.residual_x2_scales = (
+            nn.Parameter(torch.ones(num_layers, dtype=torch.float32))
+            if self.use_same_axis_twoqubit
+            else None
+        )
+        self.residual_x2_biases = (
+            nn.Parameter(torch.zeros(num_layers, dtype=torch.float32))
+            if self.use_same_axis_twoqubit
+            else None
+        )
+        self.readout_weights = (
+            nn.Parameter(torch.tensor([1.0, 0.0], dtype=torch.float32))
+            if self.use_same_axis_twoqubit
+            else None
+        )
+        self.readout_bias = (
+            nn.Parameter(torch.tensor(0.0, dtype=torch.float32))
+            if self.use_same_axis_twoqubit
+            else None
+        )
+        self.twoqubit_rotations = (
+            nn.Parameter(torch.zeros((2, 3), dtype=torch.float32))
+            if self.use_twoqubit_raw_no_reupload
+            else None
+        )
+        self.twoqubit_readout_weights = (
+            nn.Parameter(torch.tensor([0.0, 0.0, 1.0, 1.0], dtype=torch.float32))
+            if self.use_twoqubit_raw_no_reupload
+            else None
+        )
+        self.twoqubit_readout_bias = (
+            nn.Parameter(torch.tensor(0.0, dtype=torch.float32))
+            if self.use_twoqubit_raw_no_reupload
+            else None
+        )
+        self.poly_coefficients = (
+            nn.Parameter(
+                torch.tensor(
+                    [[0.0, 1.0, 0.0, 0.0]] * num_layers,
+                    dtype=torch.float32,
+                )
+            )
+            if self.use_same_axis_poly
             else None
         )
         self.block_rotations = (
@@ -168,30 +295,136 @@ class DataReuploadingRegressor(nn.Module):
             exp_biases: torch.Tensor,
             x2_scales: torch.Tensor,
             x2_biases: torch.Tensor,
+            residual_phase_shifts: torch.Tensor,
+            residual_exp_scales: torch.Tensor,
+            residual_exp_biases: torch.Tensor,
+            residual_x2_scales: torch.Tensor,
+            residual_x2_biases: torch.Tensor,
+            poly_coefficients: torch.Tensor,
             block_rotations: torch.Tensor,
-        ) -> torch.Tensor:
+        ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+            if self.use_twoqubit_no_reupload:
+                qml.RY(encoded_features[0], wires=0)
+                qml.RY(encoded_features[1], wires=1)
+                return (
+                    qml.expval(qml.PauliX(0) @ qml.PauliZ(1)),
+                    qml.expval(qml.PauliZ(0) @ qml.PauliX(1)),
+                )
+            if self.use_twoqubit_raw_no_reupload:
+                qml.RY(encoded_features[0], wires=0)
+                qml.RY(encoded_features[1], wires=1)
+                qml.CNOT(wires=[0, 1])
+                qml.Rot(block_rotations[0, 0], block_rotations[0, 1], block_rotations[0, 2], wires=0)
+                qml.Rot(block_rotations[1, 0], block_rotations[1, 1], block_rotations[1, 2], wires=1)
+                return (
+                    qml.expval(qml.PauliZ(0)),
+                    qml.expval(qml.PauliZ(1)),
+                    qml.expval(qml.PauliX(0) @ qml.PauliZ(1)),
+                    qml.expval(qml.PauliZ(0) @ qml.PauliX(1)),
+                )
+
             for block_idx in range(self.num_layers):
-                qml.RY(exp_scales[block_idx] * encoded_features[0] + exp_biases[block_idx], wires=0)
+                x1_value = encoded_features[0]
+                if self.use_same_axis_poly:
+                    coeffs = poly_coefficients[block_idx]
+                    x1_sq = x1_value * x1_value
+                    exp_like_value = (
+                        coeffs[0]
+                        + coeffs[1] * x1_value
+                        + coeffs[2] * x1_sq
+                        + coeffs[3] * x1_sq * x1_value
+                    )
+                else:
+                    exp_like_value = encoded_features[0]
+                qml.RY(exp_scales[block_idx] * exp_like_value + exp_biases[block_idx], wires=0)
                 qml.RY(x2_scales[block_idx] * encoded_features[1] + x2_biases[block_idx], wires=0)
                 qml.RY(phase_shifts[block_idx], wires=0)
+                if self.use_same_axis_twoqubit:
+                    qml.RY(
+                        residual_exp_scales[block_idx] * encoded_features[0]
+                        + residual_exp_biases[block_idx],
+                        wires=1,
+                    )
+                    qml.RY(
+                        residual_x2_scales[block_idx] * encoded_features[1]
+                        + residual_x2_biases[block_idx],
+                        wires=1,
+                    )
+                    qml.RY(residual_phase_shifts[block_idx], wires=1)
+                    qml.CNOT(wires=[1, 0])
                 qml.Rot(
                     block_rotations[block_idx, 0],
                     block_rotations[block_idx, 1],
                     block_rotations[block_idx, 2],
                     wires=0,
                 )
+            if self.use_same_axis_twoqubit:
+                return qml.expval(qml.PauliZ(0)), qml.expval(qml.PauliZ(1))
             return qml.expval(qml.PauliZ(0))
 
         self.exact_circuit = exact_circuit
 
     def _resolve_circuit_parameters(
         self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        if self.use_same_axis_reupload or self.use_same_axis_rot:
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+    ]:
+        if (
+            self.use_same_axis_reupload
+            or self.use_same_axis_raw
+            or self.use_same_axis_twoqubit
+            or self.use_same_axis_poly
+            or self.use_same_axis_rot
+        ):
             block_rotations = (
                 self.block_rotations.to(dtype=x.dtype, device=x.device)
                 if self.block_rotations is not None
                 else torch.zeros((self.num_layers, 3), dtype=x.dtype, device=x.device)
+            )
+            poly_coefficients = (
+                self.poly_coefficients.to(dtype=x.dtype, device=x.device)
+                if self.poly_coefficients is not None
+                else torch.tensor(
+                    [[0.0, 1.0, 0.0, 0.0]] * self.num_layers,
+                    dtype=x.dtype,
+                    device=x.device,
+                )
+            )
+            residual_phase_shifts = (
+                self.residual_phase_shifts.to(dtype=x.dtype, device=x.device)
+                if self.residual_phase_shifts is not None
+                else torch.zeros(self.num_layers, dtype=x.dtype, device=x.device)
+            )
+            residual_exp_scales = (
+                self.residual_exp_scales.to(dtype=x.dtype, device=x.device)
+                if self.residual_exp_scales is not None
+                else torch.zeros(self.num_layers, dtype=x.dtype, device=x.device)
+            )
+            residual_exp_biases = (
+                self.residual_exp_biases.to(dtype=x.dtype, device=x.device)
+                if self.residual_exp_biases is not None
+                else torch.zeros(self.num_layers, dtype=x.dtype, device=x.device)
+            )
+            residual_x2_scales = (
+                self.residual_x2_scales.to(dtype=x.dtype, device=x.device)
+                if self.residual_x2_scales is not None
+                else torch.zeros(self.num_layers, dtype=x.dtype, device=x.device)
+            )
+            residual_x2_biases = (
+                self.residual_x2_biases.to(dtype=x.dtype, device=x.device)
+                if self.residual_x2_biases is not None
+                else torch.zeros(self.num_layers, dtype=x.dtype, device=x.device)
             )
             return (
                 self.phase_shifts.to(dtype=x.dtype, device=x.device),
@@ -199,7 +432,34 @@ class DataReuploadingRegressor(nn.Module):
                 self.exp_biases.to(dtype=x.dtype, device=x.device),
                 self.x2_scales.to(dtype=x.dtype, device=x.device),
                 self.x2_biases.to(dtype=x.dtype, device=x.device),
+                residual_phase_shifts,
+                residual_exp_scales,
+                residual_exp_biases,
+                residual_x2_scales,
+                residual_x2_biases,
+                poly_coefficients,
                 block_rotations,
+            )
+
+        if self.use_twoqubit_raw_no_reupload:
+            twoqubit_rotations = (
+                self.twoqubit_rotations.to(dtype=x.dtype, device=x.device)
+                if self.twoqubit_rotations is not None
+                else torch.zeros((2, 3), dtype=x.dtype, device=x.device)
+            )
+            return (
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros(1, dtype=x.dtype, device=x.device),
+                torch.zeros((1, 4), dtype=x.dtype, device=x.device),
+                twoqubit_rotations,
             )
 
         phase_shift = (
@@ -233,26 +493,75 @@ class DataReuploadingRegressor(nn.Module):
             torch.atleast_1d(exp_bias).to(dtype=x.dtype, device=x.device),
             torch.atleast_1d(x2_scale).to(dtype=x.dtype, device=x.device),
             torch.atleast_1d(x2_bias).to(dtype=x.dtype, device=x.device),
+            torch.zeros(self.num_layers, dtype=x.dtype, device=x.device),
+            torch.zeros(self.num_layers, dtype=x.dtype, device=x.device),
+            torch.zeros(self.num_layers, dtype=x.dtype, device=x.device),
+            torch.zeros(self.num_layers, dtype=x.dtype, device=x.device),
+            torch.zeros(self.num_layers, dtype=x.dtype, device=x.device),
+            torch.tensor([[0.0, 1.0, 0.0, 0.0]] * self.num_layers, dtype=x.dtype, device=x.device),
             torch.zeros((self.num_layers, 3), dtype=x.dtype, device=x.device),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         lifted_features = encode_features(x, self.encoding_mode)
-        phase_shifts, exp_scales, exp_biases, x2_scales, x2_biases, block_rotations = (
+        (
+            phase_shifts,
+            exp_scales,
+            exp_biases,
+            x2_scales,
+            x2_biases,
+            residual_phase_shifts,
+            residual_exp_scales,
+            residual_exp_biases,
+            residual_x2_scales,
+            residual_x2_biases,
+            poly_coefficients,
+            block_rotations,
+        ) = (
             self._resolve_circuit_parameters(x)
         )
-        circuit_outputs = [
-            self.exact_circuit(
+        circuit_outputs: list[torch.Tensor] = []
+        for sample in lifted_features:
+            circuit_output = self.exact_circuit(
                 sample,
                 phase_shifts,
                 exp_scales,
                 exp_biases,
                 x2_scales,
                 x2_biases,
+                residual_phase_shifts,
+                residual_exp_scales,
+                residual_exp_biases,
+                residual_x2_scales,
+                residual_x2_biases,
+                poly_coefficients,
                 block_rotations,
             )
-            for sample in lifted_features
-        ]
+            if self.use_same_axis_twoqubit:
+                assert self.readout_weights is not None
+                assert self.readout_bias is not None
+                z0, z1 = circuit_output
+                readout_weights = self.readout_weights.to(dtype=x.dtype, device=x.device)
+                readout_bias = self.readout_bias.to(dtype=x.dtype, device=x.device)
+                circuit_outputs.append(readout_weights[0] * z0 + readout_weights[1] * z1 + readout_bias)
+            elif self.use_twoqubit_raw_no_reupload:
+                assert self.twoqubit_readout_weights is not None
+                assert self.twoqubit_readout_bias is not None
+                z0, z1, xz, zx = circuit_output
+                readout_weights = self.twoqubit_readout_weights.to(dtype=x.dtype, device=x.device)
+                readout_bias = self.twoqubit_readout_bias.to(dtype=x.dtype, device=x.device)
+                circuit_outputs.append(
+                    readout_weights[0] * z0
+                    + readout_weights[1] * z1
+                    + readout_weights[2] * xz
+                    + readout_weights[3] * zx
+                    + readout_bias
+                )
+            elif self.use_twoqubit_no_reupload:
+                xz, zx = circuit_output
+                circuit_outputs.append(xz + zx)
+            else:
+                circuit_outputs.append(circuit_output)
         return torch.stack(circuit_outputs).unsqueeze(1).to(x.dtype)
 
 
@@ -270,6 +579,28 @@ def snapshot_model_state(model: DataReuploadingRegressor) -> dict[str, list]:
         snapshot["x2_scales"] = model.x2_scales.detach().cpu().tolist()
     if model.x2_biases is not None:
         snapshot["x2_biases"] = model.x2_biases.detach().cpu().tolist()
+    if model.residual_phase_shifts is not None:
+        snapshot["residual_phase_shifts"] = model.residual_phase_shifts.detach().cpu().tolist()
+    if model.residual_exp_scales is not None:
+        snapshot["residual_exp_scales"] = model.residual_exp_scales.detach().cpu().tolist()
+    if model.residual_exp_biases is not None:
+        snapshot["residual_exp_biases"] = model.residual_exp_biases.detach().cpu().tolist()
+    if model.residual_x2_scales is not None:
+        snapshot["residual_x2_scales"] = model.residual_x2_scales.detach().cpu().tolist()
+    if model.residual_x2_biases is not None:
+        snapshot["residual_x2_biases"] = model.residual_x2_biases.detach().cpu().tolist()
+    if model.readout_weights is not None:
+        snapshot["readout_weights"] = model.readout_weights.detach().cpu().tolist()
+    if model.readout_bias is not None:
+        snapshot["readout_bias"] = float(model.readout_bias.detach().cpu().item())
+    if model.twoqubit_rotations is not None:
+        snapshot["twoqubit_rotations"] = model.twoqubit_rotations.detach().cpu().tolist()
+    if model.twoqubit_readout_weights is not None:
+        snapshot["twoqubit_readout_weights"] = model.twoqubit_readout_weights.detach().cpu().tolist()
+    if model.twoqubit_readout_bias is not None:
+        snapshot["twoqubit_readout_bias"] = float(model.twoqubit_readout_bias.detach().cpu().item())
+    if model.poly_coefficients is not None:
+        snapshot["poly_coefficients"] = model.poly_coefficients.detach().cpu().tolist()
     if model.phase_shift is not None:
         snapshot["phase_shift"] = float(model.phase_shift.detach().cpu().item())
     if model.exp_scale is not None:
@@ -301,6 +632,48 @@ def load_model_state_snapshot(
             model.x2_scales.copy_(torch.tensor(snapshot_state["x2_scales"], dtype=torch.float32))
         if model.x2_biases is not None:
             model.x2_biases.copy_(torch.tensor(snapshot_state["x2_biases"], dtype=torch.float32))
+        if model.residual_phase_shifts is not None:
+            model.residual_phase_shifts.copy_(
+                torch.tensor(snapshot_state["residual_phase_shifts"], dtype=torch.float32)
+            )
+        if model.residual_exp_scales is not None:
+            model.residual_exp_scales.copy_(
+                torch.tensor(snapshot_state["residual_exp_scales"], dtype=torch.float32)
+            )
+        if model.residual_exp_biases is not None:
+            model.residual_exp_biases.copy_(
+                torch.tensor(snapshot_state["residual_exp_biases"], dtype=torch.float32)
+            )
+        if model.residual_x2_scales is not None:
+            model.residual_x2_scales.copy_(
+                torch.tensor(snapshot_state["residual_x2_scales"], dtype=torch.float32)
+            )
+        if model.residual_x2_biases is not None:
+            model.residual_x2_biases.copy_(
+                torch.tensor(snapshot_state["residual_x2_biases"], dtype=torch.float32)
+            )
+        if model.readout_weights is not None:
+            model.readout_weights.copy_(
+                torch.tensor(snapshot_state["readout_weights"], dtype=torch.float32)
+            )
+        if model.readout_bias is not None:
+            model.readout_bias.copy_(torch.tensor(snapshot_state["readout_bias"], dtype=torch.float32))
+        if model.twoqubit_rotations is not None:
+            model.twoqubit_rotations.copy_(
+                torch.tensor(snapshot_state["twoqubit_rotations"], dtype=torch.float32)
+            )
+        if model.twoqubit_readout_weights is not None:
+            model.twoqubit_readout_weights.copy_(
+                torch.tensor(snapshot_state["twoqubit_readout_weights"], dtype=torch.float32)
+            )
+        if model.twoqubit_readout_bias is not None:
+            model.twoqubit_readout_bias.copy_(
+                torch.tensor(snapshot_state["twoqubit_readout_bias"], dtype=torch.float32)
+            )
+        if model.poly_coefficients is not None:
+            model.poly_coefficients.copy_(
+                torch.tensor(snapshot_state["poly_coefficients"], dtype=torch.float32)
+            )
         if model.phase_shift is not None:
             model.phase_shift.copy_(torch.tensor(snapshot_state["phase_shift"], dtype=torch.float32))
         if model.exp_scale is not None:
@@ -397,7 +770,20 @@ def make_circuit_diagram(
 ) -> Path:
     lifted_sample = encode_features(sample.unsqueeze(0), model.encoding_mode)
     structured_sample = lifted_sample.squeeze(0)
-    phase_shifts, exp_scales, exp_biases, x2_scales, x2_biases, block_rotations = (
+    (
+        phase_shifts,
+        exp_scales,
+        exp_biases,
+        x2_scales,
+        x2_biases,
+        residual_phase_shifts,
+        residual_exp_scales,
+        residual_exp_biases,
+        residual_x2_scales,
+        residual_x2_biases,
+        poly_coefficients,
+        block_rotations,
+    ) = (
         model._resolve_circuit_parameters(structured_sample)
     )
     fig, _ = qml.draw_mpl(model.exact_circuit)(
@@ -407,6 +793,12 @@ def make_circuit_diagram(
         exp_biases.detach().cpu().numpy(),
         x2_scales.detach().cpu().numpy(),
         x2_biases.detach().cpu().numpy(),
+        residual_phase_shifts.detach().cpu().numpy(),
+        residual_exp_scales.detach().cpu().numpy(),
+        residual_exp_biases.detach().cpu().numpy(),
+        residual_x2_scales.detach().cpu().numpy(),
+        residual_x2_biases.detach().cpu().numpy(),
+        poly_coefficients.detach().cpu().numpy(),
         block_rotations.detach().cpu().numpy(),
     )
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
