@@ -66,46 +66,42 @@ The key source files in the bundled `source/HW1/problem1/` tree are:
 - `tools/render_snapshot_chunk.py`: post-process per-step surfaces and heatmaps
 - `tools/fourier_analysis.py`: frequency-domain analysis of the final export
 
-The actual model is a hybrid regressor:
+The current model family is intentionally more structured than the earlier
+generic baseline. It starts from the exact circuit identity for this task and
+then relaxes assumptions one step at a time:
 
-1. Classical input features are optionally lifted before entering the quantum model.
-2. A learned linear projection maps those lifted features onto `num_qubits`.
-3. Each layer applies data reuploading with `RY` and `RZ` on every wire.
-4. A ring of `CNOT` gates entangles the wires.
-5. Trainable `Rot` gates provide the variational parameters.
-6. The circuit returns one `PauliZ` expectation value per qubit.
-7. A classical output head maps those quantum features to the scalar prediction.
+1. `quantum_exact`
+2. `phase_learnable`
+3. `scaled_exact`
 
-That means the three main experimental levers are:
+The shared core idea is:
 
-- feature encoding
-- number of qubits
-- number of reuploading layers
+1. Upload `exp(x1)` and `x2` on the same rotation axis.
+2. Let same-axis reuploading add those angles.
+3. Use a phase shift to turn the measured `PauliZ` expectation from cosine into sine.
+
+This keeps the architecture tied to the problem structure instead of asking a
+generic projection-heavy ansatz to rediscover it from scratch.
 
 ## What options were actually tested
 
-The current standard pipeline tests this matrix:
+The current standard pipeline tests the structured generalization ladder:
 
-- `raw`, `q=2`, `l=2`
-- `raw`, `q=2`, `l=3`
-- `raw`, `q=3`, `l=2`
-- `raw`, `q=3`, `l=3`
-- `poly`, `q=2`, `l=2`
-- `exp`, `q=2`, `l=2`
+- `quantum_exact`, `q=1`, `l=1`
+- `phase_learnable`, `q=1`, `l=1`
+- `scaled_exact`, `q=1`, `l=1`
 
-Those options differ in meaningful ways:
+Those options differ in a deliberately staged way:
 
-- `raw`: passes `[x1, x2]` directly into the learned projection
-- `poly`: expands to `[x1, x2, x1^2, x1*x2, x2^2]` before projection
-- `exp`: uses `[exp(x1), x2]`, which injects a feature closer to the target function structure
-- `q=2` vs `q=3`: changes the number of wires, the number of circuit outputs, and the size of the trainable quantum block
-- `l=2` vs `l=3`: changes how many times data reuploading, entanglement, and trainable rotations are repeated
+- `quantum_exact`: fixed constructive solution for `sin(exp(x1) + x2)`
+- `phase_learnable`: keeps the same circuit skeleton but learns the phase shift
+- `scaled_exact`: additionally learns scale and bias terms on `exp(x1)` and `x2`
 
-So the comparison is not just "small vs large." It is also:
+So the comparison is no longer "generic small vs generic large." It is:
 
-- how much classical inductive bias we provide before the circuit
-- how much quantum capacity we allocate in wires and repeated layers
-- whether extra capacity helps extrapolation, or only improves fit on the train region
+- whether the exact problem-aligned circuit already solves the task
+- whether the phase can be learned instead of fixed
+- whether a slightly relaxed structured circuit still preserves good generalization
 
 ## What the static app shows
 

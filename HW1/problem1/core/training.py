@@ -90,16 +90,20 @@ def train(config: Config, num_samples: int) -> None:
         num_qubits=config.num_qubits,
         num_layers=config.num_layers,
         encoding_mode=config.encoding_mode,
-        hidden_scale=config.hidden_scale,
-        input_activation=config.input_activation,
-        angle_scale=config.angle_scale,
         device_name=config.device_name,
         diff_method=config.diff_method or resolve_diff_method(config.device_name, None),
     )
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-    scheduler = build_lr_scheduler(config, optimizer, len(train_loader))
+    trainable_parameters = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
+    optimizer = (
+        torch.optim.Adam(
+            [parameter for parameter in model.parameters() if parameter.requires_grad],
+            lr=config.learning_rate,
+        )
+        if trainable_parameters > 0
+        else None
+    )
+    scheduler = build_lr_scheduler(config, optimizer, len(train_loader)) if optimizer is not None else None
     loss_fn = nn.MSELoss()
-    trainable_parameters = sum(parameter.numel() for parameter in model.parameters())
     loss_history: list[dict[str, float]] = []
     timeline_snapshots: list[dict[str, object]] = []
     timeline_steps: list[dict[str, object]] = []
@@ -108,14 +112,13 @@ def train(config: Config, num_samples: int) -> None:
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(config.experiment_name)
 
-    print("QCAA HW1 Problem 1 - data reuploading baseline")
+    print("QCAA HW1 Problem 1 - structured data reuploading")
     print(
         f"seed={SEED} samples={num_samples} qubits={config.num_qubits} "
         f"layers={config.num_layers} encoding={config.encoding_mode} "
         f"batch_size={config.batch_size} "
         f"epochs={config.epochs} lr={config.learning_rate} "
-        f"scheduler={config.lr_scheduler} min_lr={config.min_learning_rate:g} "
-        f"activation={config.input_activation} angle_scale={config.angle_scale:g}",
+        f"scheduler={config.lr_scheduler} min_lr={config.min_learning_rate:g}",
         flush=True,
     )
     print(f"device={config.device_name} diff_method={config.diff_method}", flush=True)
@@ -141,9 +144,6 @@ def train(config: Config, num_samples: int) -> None:
                 "learning_rate": config.learning_rate,
                 "lr_scheduler": config.lr_scheduler,
                 "min_learning_rate": config.min_learning_rate,
-                "hidden_scale": config.hidden_scale,
-                "input_activation": config.input_activation,
-                "angle_scale": config.angle_scale,
                 "heatmap_grid_size": config.heatmap_grid_size,
                 "device_name": config.device_name,
                 "diff_method": config.diff_method,
@@ -208,16 +208,18 @@ def train(config: Config, num_samples: int) -> None:
             )
 
             for batch_index, (features, labels) in enumerate(progress, start=1):
-                optimizer.zero_grad()
+                if optimizer is not None:
+                    optimizer.zero_grad()
                 predictions = model(features)
                 loss = loss_fn(predictions, labels)
-                loss.backward()
-                optimizer.step()
-                if scheduler is not None:
-                    scheduler.step()
+                if optimizer is not None:
+                    loss.backward()
+                    optimizer.step()
+                    if scheduler is not None:
+                        scheduler.step()
                 global_step += 1
                 batch_loss = float(loss.item())
-                current_lr = float(optimizer.param_groups[0]["lr"])
+                current_lr = float(optimizer.param_groups[0]["lr"]) if optimizer is not None else 0.0
                 last_batch_index = batch_index
                 last_batch_loss = batch_loss
                 progress.set_postfix(
@@ -245,7 +247,9 @@ def train(config: Config, num_samples: int) -> None:
                 "epoch": float(epoch),
                 "global_step": float(global_step),
                 "last_batch_loss": last_batch_loss,
-                "learning_rate": float(optimizer.param_groups[0]["lr"]),
+                "learning_rate": (
+                    float(optimizer.param_groups[0]["lr"]) if optimizer is not None else 0.0
+                ),
             }
 
             if config.render_mode == "inline":

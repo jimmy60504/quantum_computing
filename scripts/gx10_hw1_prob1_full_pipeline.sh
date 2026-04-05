@@ -22,8 +22,6 @@ TRAIN_BATCH_SIZE="${HW1_PIPELINE_BATCH_SIZE:-64}"
 TRAIN_HEATMAP_GRID_SIZE="${HW1_PIPELINE_HEATMAP_GRID_SIZE:-64}"
 TRAIN_LR_SCHEDULER="${HW1_PIPELINE_LR_SCHEDULER:-none}"
 TRAIN_MIN_LR="${HW1_PIPELINE_MIN_LR:-0.0}"
-TRAIN_INPUT_ACTIVATION="${HW1_PIPELINE_INPUT_ACTIVATION:-tanh}"
-TRAIN_ANGLE_SCALE="${HW1_PIPELINE_ANGLE_SCALE:-1.0}"
 RUN_TAG="${HW1_PIPELINE_RUN_TAG:-}"
 RENDER_WORKERS="${HW1_PIPELINE_RENDER_WORKERS:-20}"
 RENDER_CPUSET="${HW1_PIPELINE_RENDER_CPUSET:-0-19}"
@@ -32,20 +30,16 @@ TRAIN_CPUSET="${HW1_PIPELINE_TRAIN_CPUSET:-5-9,15-19}"
 TRAIN_CPUS="${HW1_PIPELINE_TRAIN_CPUS:-10}"
 
 RUN_MATRIX=(
-  "raw 2 2"
-  "raw 2 3"
-  "raw 3 2"
-  "raw 3 3"
-  "poly 2 2"
-  "exp 2 2"
+  "quantum_exact 1 1"
+  "phase_learnable 1 1"
+  "scaled_exact 1 1"
 )
 
 run_case() {
   local encoding="$1"
   local qubits="$2"
   local layers="$3"
-  local angle_scale_tag="${TRAIN_ANGLE_SCALE//./p}"
-  local run_name="${encoding}-q${qubits}-l${layers}-act${TRAIN_INPUT_ACTIVATION}-as${angle_scale_tag}-e${EPOCHS}"
+  local run_name="${encoding}-q${qubits}-l${layers}-e${EPOCHS}"
   if [[ -n "${RUN_TAG}" ]]; then
     run_name="${run_name}-${RUN_TAG}"
   fi
@@ -75,8 +69,6 @@ run_case() {
         --epochs "${EPOCHS}" \
         --lr-scheduler "${TRAIN_LR_SCHEDULER}" \
         --min-learning-rate "${TRAIN_MIN_LR}" \
-        --input-activation "${TRAIN_INPUT_ACTIVATION}" \
-        --angle-scale "${TRAIN_ANGLE_SCALE}" \
         --device "${TRAIN_DEVICE}" \
         --diff-method "${TRAIN_DIFF_METHOD}" \
         --render-mode snapshots-only \
@@ -147,8 +139,6 @@ main() {
   echo "epochs=${EPOCHS}"
   echo "lr_scheduler=${TRAIN_LR_SCHEDULER}"
   echo "min_lr=${TRAIN_MIN_LR}"
-  echo "input_activation=${TRAIN_INPUT_ACTIVATION}"
-  echo "angle_scale=${TRAIN_ANGLE_SCALE}"
   echo "train_backend=${TRAIN_DEVICE}+${TRAIN_DIFF_METHOD}"
   echo "render_backend=${RENDER_DEVICE}+${RENDER_DIFF_METHOD}"
   echo "render_workers=${RENDER_WORKERS}"

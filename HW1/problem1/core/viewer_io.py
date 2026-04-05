@@ -13,13 +13,11 @@ except ImportError:  # pragma: no cover - direct script execution on gx10
 
 def build_experiment_metadata(config: Config, note: str | None = None) -> dict[str, str]:
     return {
-        "model": "PennyLane data reuploading regressor",
+        "model": "Structured PennyLane data reuploading regressor",
         "task": "Regression on f(x1, x2) = sin(exp(x1) + x2)",
         "encoding": config.encoding_mode,
         "lr_scheduler": config.lr_scheduler,
         "min_learning_rate": f"{config.min_learning_rate:g}",
-        "input_activation": config.input_activation,
-        "angle_scale": f"{config.angle_scale:g}",
         "train_domain": "[0.0, 0.5] x [0.0, 0.5]",
         "test_domain": "[0.5, 1.0] x [0.5, 1.0]",
         "device": f"{config.device_name} + {config.diff_method}",
@@ -44,8 +42,8 @@ def build_viewer_payload(
         "status": status,
         "description": description
         or (
-            "This export is generated from the latest training run and stores raw heatmap "
-            "grids per batch step for Plotly playback."
+            "This export is generated from the latest structured reuploading run and "
+            "stores per-step heatmap grids for Plotly playback."
         ),
         "experiment": build_experiment_metadata(config),
         "assets": {
@@ -99,11 +97,8 @@ def write_snapshot_export(
         "num_qubits": config.num_qubits,
         "num_layers": config.num_layers,
         "encoding_mode": config.encoding_mode,
-        "hidden_scale": config.hidden_scale,
         "lr_scheduler": config.lr_scheduler,
         "min_learning_rate": config.min_learning_rate,
-        "input_activation": config.input_activation,
-        "angle_scale": config.angle_scale,
         "device_name": config.device_name,
         "diff_method": config.diff_method,
         "heatmap_grid_size": config.heatmap_grid_size,
@@ -176,8 +171,6 @@ def update_viewer_manifest(
         "min_learning_rate": config.min_learning_rate,
         "batch_size": config.batch_size,
         "epochs": config.epochs,
-        "input_activation": config.input_activation,
-        "angle_scale": config.angle_scale,
         "best_test_mse": best_test_mse,
         "final_train_mse": final_train_mse,
         "final_test_mse": final_test_mse,

@@ -174,8 +174,12 @@ GX10_IMAGE=quantum-gx10:aer-gpu ./scripts/gx10_run_py.sh qiskit_aer_gpu_demo.py
 ## HW1 Problem 1
 
 The main active experiment lives in `HW1/problem1/`. It is a data reuploading
-regression setup with multiple classical encodings including `raw`, `poly`, and
-`exp`.
+regression setup built around a structured progression:
+
+- `quantum_exact`: fixed 1-qubit construction that directly matches the target
+- `phase_learnable`: same structure with a learnable phase shift
+- `scaled_exact`: same structure with learnable scales and biases before the
+  final phase shift
 
 ### One-off training run
 
@@ -186,14 +190,24 @@ cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py
 ```
 
-Run a specific encoding:
+Run the current default structured model:
 
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
-  --encoding exp \
-  --num-qubits 2 \
-  --num-layers 2
+  --encoding phase_learnable \
+  --num-qubits 1 \
+  --num-layers 1
+```
+
+Run the exact reference circuit:
+
+```bash
+cd ~/quantum_computing
+./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
+  --encoding quantum_exact \
+  --num-qubits 1 \
+  --num-layers 1
 ```
 
 You can also switch backend and differentiation mode:
@@ -254,7 +268,10 @@ cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
   --render-mode snapshots-only \
   --viewer-export-every 1 \
-  --run-name raw-q2-l2-e20
+  --encoding phase_learnable \
+  --num-qubits 1 \
+  --num-layers 1 \
+  --run-name phase-learnable-q1-l1-e20
 ```
 
 Evaluate and merge metrics:
@@ -262,10 +279,10 @@ Evaluate and merge metrics:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/tools/evaluate_snapshot_chunk.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json
 
 ./scripts/gx10_run_py.sh HW1/problem1/tools/merge_evaluated_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
   --require-complete
 ```
 
@@ -274,10 +291,10 @@ Render and merge viewer output:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json
+  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json
 
 ./scripts/gx10_run_py.sh HW1/problem1/tools/merge_rendered_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
   --require-complete
 ```
 
@@ -286,7 +303,7 @@ Run Fourier analysis:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/tools/fourier_analysis.py \
-  --viewer-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20.json
+  --viewer-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20.json
 ```
 
 ### Full pipeline helper

@@ -333,7 +333,7 @@ export function renderLossChart(steps, currentIndex) {
 
 export function renderEmptyState() {
     currentStepLabel.textContent = "Final snapshot";
-    timelineCaption.textContent = "Waiting for raw step grids.";
+    timelineCaption.textContent = "Waiting for step heatmaps.";
     if (timelineCaption) {
         timelineCaption.hidden = false;
     }

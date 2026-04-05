@@ -60,17 +60,17 @@ Relevant scripts:
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/datareuploading.py \
   --render-mode snapshots-only \
-  --encoding raw \
-  --num-qubits 2 \
-  --num-layers 2 \
+  --encoding phase_learnable \
+  --num-qubits 1 \
+  --num-layers 1 \
   --epochs 20 \
   --viewer-export-every 1 \
-  --run-name raw-q2-l2-e20
+  --run-name phase-learnable-q1-l1-e20
 ```
 
 This produces a snapshot export such as:
 
-- `hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json`
+- `hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json`
 
 In `snapshots-only` mode the training loop no longer computes per-epoch
 train/test MSE inline. Those metrics are reconstructed later from the saved
@@ -89,10 +89,10 @@ current default workflow does not need them.
 mkdir -p ~/metrics_chunks
 cd ~/mnt/gx10-quantum
 python3 HW1/problem1/tools/evaluate_snapshot_chunk.py \
-  --snapshot-export ~/mnt/gx10-quantum/hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --snapshot-export ~/mnt/gx10-quantum/hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
   --start-index 0 \
   --end-index 80 \
-  --output ~/metrics_chunks/raw-q2-l2-e20_metrics_chunk_00000_00079.json
+  --output ~/metrics_chunks/phase-learnable-q1-l1-e20_metrics_chunk_00000_00079.json
 ```
 
 Merge the metrics chunks back into a lightweight summary export:
@@ -100,8 +100,8 @@ Merge the metrics chunks back into a lightweight summary export:
 ```bash
 cd ~/quantum_computing
 python3 HW1/problem1/tools/merge_evaluated_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
-  --chunk-glob "hf_space_hw1_problem1/runtime/metrics/raw-q2-l2-e20_snapshots_metrics_chunk_*.json"
+  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
+  --chunk-glob "hf_space_hw1_problem1/runtime/metrics/phase-learnable-q1-l1-e20_snapshots_metrics_chunk_*.json"
 ```
 
 This gives a cheap way to compare `train_mse` and `test_mse` across many runs
@@ -113,10 +113,10 @@ before paying for full heatmap rendering.
 mkdir -p ~/render_chunks
 cd ~/mnt/gx10-quantum
 python3 HW1/problem1/tools/render_snapshot_chunk.py \
-  --snapshot-export ~/mnt/gx10-quantum/hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
+  --snapshot-export ~/mnt/gx10-quantum/hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
   --start-index 0 \
   --end-index 80 \
-  --output ~/render_chunks/raw-q2-l2-e20_chunk_00000_00079.json
+  --output ~/render_chunks/phase-learnable-q1-l1-e20_chunk_00000_00079.json
 ```
 
 If the helper machine needs a more portable simulator, override the render
@@ -138,8 +138,8 @@ Once chunk JSON files are copied back, merge them into the final viewer export:
 ```bash
 cd ~/quantum_computing
 python3 HW1/problem1/tools/merge_rendered_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20_snapshots.json \
-  --chunk-glob "hf_space_hw1_problem1/runtime/chunks/raw-q2-l2-e20_snapshots_chunk_*.json"
+  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
+  --chunk-glob "hf_space_hw1_problem1/runtime/chunks/phase-learnable-q1-l1-e20_snapshots_chunk_*.json"
 ```
 
 Then run Fourier analysis on the merged viewer export:
@@ -147,7 +147,7 @@ Then run Fourier analysis on the merged viewer export:
 ```bash
 cd ~/quantum_computing
 python3 HW1/problem1/tools/fourier_analysis.py \
-  --viewer-export hf_space_hw1_problem1/runtime/raw-q2-l2-e20.json
+  --viewer-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20.json
 ```
 
 ## Safety rules

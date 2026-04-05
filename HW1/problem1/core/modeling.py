@@ -26,19 +26,7 @@ _RENDER_CONTEXT: dict[str, object] | None = None
 
 
 def encoded_feature_dim(encoding_mode: str) -> int:
-    if encoding_mode == "raw":
-        return 2
-    if encoding_mode == "poly":
-        return 5
-    if encoding_mode == "exp":
-        return 2
-    if encoding_mode == "exp_aug":
-        return 3
-    if encoding_mode == "exp_sum":
-        return 4
-    if encoding_mode == "oracle_shortcut":
-        return 3
-    if encoding_mode == "quantum_exact":
+    if encoding_mode in ("quantum_exact", "phase_learnable", "scaled_exact"):
         return 2
     raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
 
@@ -47,40 +35,10 @@ def encode_features(x: torch.Tensor, encoding_mode: str) -> torch.Tensor:
     x1 = x[:, 0:1]
     x2 = x[:, 1:2]
 
-    if encoding_mode == "raw":
-        return x
-
-    if encoding_mode == "poly":
-        return torch.cat([x1, x2, x1.square(), x1 * x2, x2.square()], dim=1)
-
-    if encoding_mode == "exp":
-        return torch.cat([torch.exp(x1), x2], dim=1)
-
-    if encoding_mode == "exp_aug":
-        return torch.cat([x1, x2, torch.exp(x1)], dim=1)
-
-    if encoding_mode == "exp_sum":
-        exp_x1 = torch.exp(x1)
-        return torch.cat([x1, x2, exp_x1, exp_x1 + x2], dim=1)
-
-    if encoding_mode == "oracle_shortcut":
-        oracle_target = torch.sin(torch.exp(x1) + x2)
-        return torch.cat([x1, x2, oracle_target], dim=1)
-
-    if encoding_mode == "quantum_exact":
+    if encoding_mode in ("quantum_exact", "phase_learnable", "scaled_exact"):
         return torch.cat([torch.exp(x1), x2], dim=1)
 
     raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
-
-
-def apply_input_activation(projected_features: torch.Tensor, input_activation: str) -> torch.Tensor:
-    if input_activation == "tanh":
-        return torch.tanh(projected_features)
-
-    if input_activation == "identity":
-        return projected_features
-
-    raise ValueError(f"Unsupported input activation: {input_activation}")
 
 
 def make_datasets(num_samples: int) -> tuple[TensorDataset, TensorDataset]:
@@ -101,10 +59,7 @@ class DataReuploadingRegressor(nn.Module):
         self,
         num_qubits: int,
         num_layers: int,
-        encoding_mode: str = "raw",
-        hidden_scale: float = 1.0,
-        input_activation: str = "tanh",
-        angle_scale: float = 1.0,
+        encoding_mode: str = "phase_learnable",
         device_name: str = "lightning.qubit",
         diff_method: str = "adjoint",
     ) -> None:
@@ -113,98 +68,87 @@ class DataReuploadingRegressor(nn.Module):
         self.num_layers = num_layers
         self.encoding_mode = encoding_mode
         self.use_quantum_exact = encoding_mode == "quantum_exact"
-        self.input_activation = input_activation
-        self.angle_scale = angle_scale
+        self.use_phase_learnable = encoding_mode == "phase_learnable"
+        self.use_scaled_exact = encoding_mode == "scaled_exact"
         self.device_name = device_name
         self.diff_method = diff_method
 
-        if self.use_quantum_exact and num_qubits != 1:
-            raise ValueError("quantum_exact mode requires num_qubits=1.")
+        if encoding_mode not in ("quantum_exact", "phase_learnable", "scaled_exact"):
+            raise ValueError(f"Unsupported encoding mode: {encoding_mode}")
+        if num_qubits != 1:
+            raise ValueError(f"{encoding_mode} mode requires num_qubits=1.")
+        if num_layers != 1:
+            raise ValueError(f"{encoding_mode} mode requires num_layers=1.")
 
-        self.input_projection = nn.Linear(encoded_feature_dim(encoding_mode), num_qubits)
-        self.output_head = nn.Linear(num_qubits, 1)
-        self.oracle_shortcut_head = nn.Linear(1, 1) if encoding_mode == "oracle_shortcut" else None
-        self.feature_scale = nn.Parameter(torch.full((num_qubits,), hidden_scale))
-        self.weights = nn.Parameter(0.05 * torch.randn(num_layers, num_qubits, 3))
-
-        if self.oracle_shortcut_head is not None:
-            with torch.no_grad():
-                self.output_head.weight.zero_()
-                self.output_head.bias.zero_()
-                self.oracle_shortcut_head.weight.fill_(1.0)
-                self.oracle_shortcut_head.bias.zero_()
-        elif self.use_quantum_exact:
-            with torch.no_grad():
-                self.output_head.weight.fill_(1.0)
-                self.output_head.bias.zero_()
+        self.phase_shift = (
+            nn.Parameter(torch.tensor(-np.pi / 2.0, dtype=torch.float32))
+            if self.use_phase_learnable or self.use_scaled_exact
+            else None
+        )
+        self.exp_scale = (
+            nn.Parameter(torch.tensor(1.0, dtype=torch.float32))
+            if self.use_scaled_exact
+            else None
+        )
+        self.exp_bias = (
+            nn.Parameter(torch.tensor(0.0, dtype=torch.float32))
+            if self.use_scaled_exact
+            else None
+        )
+        self.x2_scale = (
+            nn.Parameter(torch.tensor(1.0, dtype=torch.float32))
+            if self.use_scaled_exact
+            else None
+        )
+        self.x2_bias = (
+            nn.Parameter(torch.tensor(0.0, dtype=torch.float32))
+            if self.use_scaled_exact
+            else None
+        )
 
         self.dev = qml.device(device_name, wires=num_qubits)
 
         @qml.qnode(self.dev, interface="torch", diff_method=diff_method)
-        def circuit(encoded_features: torch.Tensor, weights: torch.Tensor) -> list[torch.Tensor]:
-            for layer in range(num_layers):
-                for wire in range(num_qubits):
-                    angle = encoded_features[wire]
-                    qml.RY(angle, wires=wire)
-                    qml.RZ(angle, wires=wire)
-
-                if num_qubits > 1:
-                    for wire in range(num_qubits - 1):
-                        qml.CNOT(wires=[wire, wire + 1])
-                    qml.CNOT(wires=[num_qubits - 1, 0])
-
-                for wire in range(num_qubits):
-                    qml.Rot(*weights[layer, wire], wires=wire)
-
-            return [qml.expval(qml.PauliZ(wire)) for wire in range(num_qubits)]
-
-        self.circuit = circuit
-
-        @qml.qnode(self.dev, interface="torch", diff_method=diff_method)
-        def exact_circuit(encoded_features: torch.Tensor) -> torch.Tensor:
+        def exact_circuit(encoded_features: torch.Tensor, phase_shift: torch.Tensor) -> torch.Tensor:
             qml.RY(encoded_features[0], wires=0)
             qml.RY(encoded_features[1], wires=0)
-            qml.RY(-np.pi / 2.0, wires=0)
+            qml.RY(phase_shift, wires=0)
             return qml.expval(qml.PauliZ(0))
 
         self.exact_circuit = exact_circuit
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         lifted_features = encode_features(x, self.encoding_mode)
-        oracle_residual = None
-        if self.oracle_shortcut_head is not None:
-            oracle_residual = self.oracle_shortcut_head(lifted_features[:, -1:])
-        if self.use_quantum_exact:
-            circuit_outputs = [self.exact_circuit(sample) for sample in lifted_features]
-            q_features = torch.stack(circuit_outputs).unsqueeze(1).to(x.dtype)
-            return self.output_head(q_features)
-        projected = self.input_projection(lifted_features)
-        activated = apply_input_activation(projected, self.input_activation)
-        encoded = activated * self.feature_scale * self.angle_scale
-        circuit_outputs = [torch.stack(self.circuit(sample, self.weights)) for sample in encoded]
-        q_features = torch.stack(circuit_outputs).to(x.dtype)
-        predictions = self.output_head(q_features)
-        if oracle_residual is not None:
-            predictions = predictions + oracle_residual
-        return predictions
+        structured_features = lifted_features
+        if self.use_scaled_exact:
+            structured_features = torch.stack(
+                [
+                    self.exp_scale * lifted_features[:, 0] + self.exp_bias,
+                    self.x2_scale * lifted_features[:, 1] + self.x2_bias,
+                ],
+                dim=1,
+            )
+        phase_shift = (
+            self.phase_shift
+            if self.phase_shift is not None
+            else torch.tensor(-np.pi / 2.0, dtype=x.dtype, device=x.device)
+        )
+        circuit_outputs = [self.exact_circuit(sample, phase_shift) for sample in structured_features]
+        return torch.stack(circuit_outputs).unsqueeze(1).to(x.dtype)
 
 
 def snapshot_model_state(model: DataReuploadingRegressor) -> dict[str, list]:
-    snapshot = {
-        "input_projection_weight": model.input_projection.weight.detach().cpu().tolist(),
-        "input_projection_bias": model.input_projection.bias.detach().cpu().tolist(),
-        "output_head_weight": model.output_head.weight.detach().cpu().tolist(),
-        "output_head_bias": model.output_head.bias.detach().cpu().tolist(),
-        "feature_scale": model.feature_scale.detach().cpu().tolist(),
-        "weights": model.weights.detach().cpu().tolist(),
-    }
-    if model.oracle_shortcut_head is not None:
-        snapshot["oracle_shortcut_head_weight"] = (
-            model.oracle_shortcut_head.weight.detach().cpu().tolist()
-        )
-        snapshot["oracle_shortcut_head_bias"] = (
-            model.oracle_shortcut_head.bias.detach().cpu().tolist()
-        )
+    snapshot: dict[str, float] = {}
+    if model.phase_shift is not None:
+        snapshot["phase_shift"] = float(model.phase_shift.detach().cpu().item())
+    if model.exp_scale is not None:
+        snapshot["exp_scale"] = float(model.exp_scale.detach().cpu().item())
+    if model.exp_bias is not None:
+        snapshot["exp_bias"] = float(model.exp_bias.detach().cpu().item())
+    if model.x2_scale is not None:
+        snapshot["x2_scale"] = float(model.x2_scale.detach().cpu().item())
+    if model.x2_bias is not None:
+        snapshot["x2_bias"] = float(model.x2_bias.detach().cpu().item())
     return snapshot
 
 
@@ -212,29 +156,16 @@ def load_model_state_snapshot(
     model: DataReuploadingRegressor, snapshot_state: dict[str, list]
 ) -> DataReuploadingRegressor:
     with torch.no_grad():
-        model.input_projection.weight.copy_(
-            torch.tensor(snapshot_state["input_projection_weight"], dtype=torch.float32)
-        )
-        model.input_projection.bias.copy_(
-            torch.tensor(snapshot_state["input_projection_bias"], dtype=torch.float32)
-        )
-        model.output_head.weight.copy_(
-            torch.tensor(snapshot_state["output_head_weight"], dtype=torch.float32)
-        )
-        model.output_head.bias.copy_(
-            torch.tensor(snapshot_state["output_head_bias"], dtype=torch.float32)
-        )
-        if model.oracle_shortcut_head is not None:
-            model.oracle_shortcut_head.weight.copy_(
-                torch.tensor(snapshot_state["oracle_shortcut_head_weight"], dtype=torch.float32)
-            )
-            model.oracle_shortcut_head.bias.copy_(
-                torch.tensor(snapshot_state["oracle_shortcut_head_bias"], dtype=torch.float32)
-            )
-        model.feature_scale.copy_(
-            torch.tensor(snapshot_state["feature_scale"], dtype=torch.float32)
-        )
-        model.weights.copy_(torch.tensor(snapshot_state["weights"], dtype=torch.float32))
+        if model.phase_shift is not None:
+            model.phase_shift.copy_(torch.tensor(snapshot_state["phase_shift"], dtype=torch.float32))
+        if model.exp_scale is not None:
+            model.exp_scale.copy_(torch.tensor(snapshot_state["exp_scale"], dtype=torch.float32))
+        if model.exp_bias is not None:
+            model.exp_bias.copy_(torch.tensor(snapshot_state["exp_bias"], dtype=torch.float32))
+        if model.x2_scale is not None:
+            model.x2_scale.copy_(torch.tensor(snapshot_state["x2_scale"], dtype=torch.float32))
+        if model.x2_bias is not None:
+            model.x2_bias.copy_(torch.tensor(snapshot_state["x2_bias"], dtype=torch.float32))
     return model
 
 
@@ -320,17 +251,22 @@ def make_circuit_diagram(
     model: DataReuploadingRegressor, sample: torch.Tensor, output_path: Path
 ) -> Path:
     lifted_sample = encode_features(sample.unsqueeze(0), model.encoding_mode)
-    if model.use_quantum_exact:
-        fig, _ = qml.draw_mpl(model.exact_circuit)(lifted_sample.squeeze(0).detach().cpu().numpy())
-        fig.savefig(output_path, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        return output_path
-    projected = model.input_projection(lifted_sample)
-    activated = apply_input_activation(projected, model.input_activation)
-    encoded = (activated * model.feature_scale * model.angle_scale).squeeze(0)
-    fig, _ = qml.draw_mpl(model.circuit)(
-        encoded.detach().cpu().numpy(),
-        model.weights.detach().cpu().numpy(),
+    structured_sample = lifted_sample.squeeze(0)
+    if model.use_scaled_exact:
+        structured_sample = torch.stack(
+            [
+                model.exp_scale * structured_sample[0] + model.exp_bias,
+                model.x2_scale * structured_sample[1] + model.x2_bias,
+            ]
+        )
+    phase_shift = (
+        model.phase_shift.detach().cpu().numpy()
+        if model.phase_shift is not None
+        else np.array(-np.pi / 2.0, dtype=np.float32)
+    )
+    fig, _ = qml.draw_mpl(model.exact_circuit)(
+        structured_sample.detach().cpu().numpy(),
+        phase_shift,
     )
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(fig)
@@ -398,9 +334,6 @@ def _evaluate_timeline_snapshot(
         num_qubits=int(config_dict["num_qubits"]),
         num_layers=int(config_dict["num_layers"]),
         encoding_mode=str(config_dict["encoding_mode"]),
-        hidden_scale=float(config_dict["hidden_scale"]),
-        input_activation=str(config_dict.get("input_activation", "tanh")),
-        angle_scale=float(config_dict.get("angle_scale", 1.0)),
         device_name=str(config_dict["device_name"]),
         diff_method=str(config_dict["diff_method"]),
     )
@@ -457,9 +390,6 @@ def _process_timeline_snapshots_parallel(
         "num_qubits": config.num_qubits,
         "num_layers": config.num_layers,
         "encoding_mode": config.encoding_mode,
-        "hidden_scale": config.hidden_scale,
-        "input_activation": config.input_activation,
-        "angle_scale": config.angle_scale,
         "device_name": config.device_name,
         "diff_method": config.diff_method,
         "heatmap_grid_size": config.heatmap_grid_size,

@@ -36,8 +36,8 @@ Interpretation:
 
 Practical takeaway:
 
-- Keep the `input_activation` and `angle_scale` switches in code for future controlled sweeps.
 - Do not prioritize `identity + pi` as the next main branch of experiments.
+- Retire this branch from active code and keep it only as recorded history.
 
 ## 2026-04-05: Cosine scheduler did not rescue the baseline path
 
@@ -73,6 +73,7 @@ Practical takeaway:
 
 - Record scheduler sweeps as a useful negative result.
 - Return the main line of investigation to the original baseline configuration rather than continuing to tune scheduler shape first.
+- Retire this branch from active code and keep it only as recorded history.
 
 ## 2026-04-05: Two answer-aware sanity checks
 
@@ -100,6 +101,10 @@ Interpretation:
 - The data, target definition, training loop, snapshot export, metrics pass, and viewer pipeline are all behaving correctly.
 - If the exact answer is injected directly into the output path, the system has no trouble reproducing the surface.
 - This confirms the main failure in baseline runs is not a bookkeeping or evaluation bug.
+
+Status:
+
+- This shortcut was useful as a diagnostic, but it is intentionally not part of the cleaned active code path.
 
 ### 2. Quantum exact construction
 
@@ -140,3 +145,17 @@ Practical takeaway:
 - Keep both answer-aware checks as reference diagnostics.
 - Use `quantum_exact` as the constructive proof that a structured reuploading design can solve the task.
 - Future modeling should move from the generic learned projection path toward architectures that preserve same-axis additive phase structure.
+
+## Active direction
+
+The main experiment path should now follow a structured generalization ladder instead of the earlier generic baseline:
+
+- `quantum_exact`
+- `phase_learnable`
+- `scaled_exact`
+
+Rationale:
+
+- Start from the exact same-axis reuploading construction that is known to solve the task.
+- Relax one assumption at a time.
+- Avoid returning to the old projection-heavy baseline as the main search space, because that architecture was introduced as a generic guess rather than something implied by the problem structure.
