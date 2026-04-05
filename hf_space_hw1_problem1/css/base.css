@@ -1,114 +1,114 @@
 :root {
-  --bg: #f4efe5;
-  --bg-accent: #e5f0e8;
-  --panel: rgba(255, 252, 245, 0.92);
-  --panel-strong: rgba(255, 248, 234, 0.98);
-  --text: #17211d;
-  --muted: #51615b;
-  --line: rgba(23, 33, 29, 0.12);
-  --brand: #0d8f71;
-  --brand-soft: rgba(13, 143, 113, 0.14);
-  --accent: #ef8354;
-  --shadow: 0 18px 60px rgba(20, 30, 28, 0.08);
+    --bg: #f4efe5;
+    --bg-accent: #e5f0e8;
+    --panel: rgba(255, 252, 245, 0.92);
+    --panel-strong: rgba(255, 248, 234, 0.98);
+    --text: #17211d;
+    --muted: #51615b;
+    --line: rgba(23, 33, 29, 0.12);
+    --brand: #0d8f71;
+    --brand-soft: rgba(13, 143, 113, 0.14);
+    --accent: #ef8354;
+    --shadow: 0 18px 60px rgba(20, 30, 28, 0.08);
 }
 
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 body {
-  margin: 0;
-  height: 100vh;
-  overflow: hidden;
-  font-family: "IBM Plex Sans", sans-serif;
-  color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(239, 131, 84, 0.2), transparent 28%),
-    radial-gradient(circle at top right, rgba(13, 143, 113, 0.18), transparent 24%),
-    linear-gradient(135deg, var(--bg) 0%, var(--bg-accent) 100%);
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    font-family: "IBM Plex Sans", sans-serif;
+    color: var(--text);
+    background:
+        radial-gradient(circle at top left, rgba(239, 131, 84, 0.2), transparent 28%),
+        radial-gradient(circle at top right, rgba(13, 143, 113, 0.18), transparent 24%),
+        linear-gradient(135deg, var(--bg) 0%, var(--bg-accent) 100%);
 }
 
 .page-shell {
-  display: grid;
-  grid-template-columns: minmax(300px, 360px) 1fr;
-  gap: 20px;
-  padding: 24px;
-  height: 100vh;
-  min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) 1fr;
+    gap: 20px;
+    padding: 24px;
+    height: 100vh;
+    min-height: 0;
 }
 
 .control-rail,
 .content-pane {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0;
 }
 
 .control-rail {
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 4px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
 }
 
 .content-pane {
-  overflow: hidden;
+    overflow: hidden;
 }
 
 .hero-card,
 .panel-card,
 .canvas-card {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  backdrop-filter: blur(14px);
-  border-radius: 24px;
-  box-shadow: var(--shadow);
+    border: 1px solid var(--line);
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
 }
 
 .hero-card {
-  padding: 14px 18px;
-  background: linear-gradient(160deg, rgba(255, 252, 245, 0.98), rgba(245, 255, 250, 0.94));
+    padding: 14px 18px;
+    background: linear-gradient(160deg, rgba(255, 252, 245, 0.98), rgba(245, 255, 250, 0.94));
 }
 
 .panel-card {
-  padding: 20px;
+    padding: 20px;
 }
 
 .canvas-card {
-  padding: 22px;
-  min-height: 0;
+    padding: 22px;
+    min-height: 0;
 }
 
 .eyebrow {
-  margin: 0 0 4px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--brand);
+    margin: 0 0 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand);
 }
 
 h1,
 h2 {
-  margin: 0;
-  font-family: "Space Grotesk", sans-serif;
+    margin: 0;
+    font-family: "Space Grotesk", sans-serif;
 }
 
 h1 {
-  font-size: clamp(1.35rem, 2vw, 1.8rem);
-  line-height: 1.05;
+    font-size: clamp(1.35rem, 2vw, 1.8rem);
+    line-height: 1.05;
 }
 
 h2 {
-  font-size: 1.3rem;
+    font-size: 1.3rem;
 }
 
 .muted {
-  color: var(--muted);
+    color: var(--muted);
 }
 
 .hero-card .muted {
-  margin: 4px 0 0;
-  font-size: 0.88rem;
-  line-height: 1.25;
+    margin: 4px 0 0;
+    font-size: 0.88rem;
+    line-height: 1.25;
 }

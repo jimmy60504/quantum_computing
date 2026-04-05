@@ -1,224 +1,200 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HW1 QML Viewer</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
-      rel="stylesheet"
-    />
-    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="css/base.css" />
-    <link rel="stylesheet" href="css/components.css" />
-    <link rel="stylesheet" href="css/overlays.css" />
-    <link rel="stylesheet" href="css/charts.css" />
-  </head>
-  <body>
-    <div class="page-shell">
-      <aside class="control-rail">
-        <div class="hero-card">
-          <p class="eyebrow">D11224001 Huang, Chun-Ming</p>
-          <div class="hero-title-row">
-            <h1 id="page-title">HW1 QML Viewer</h1>
-            <div class="hero-info-wrap">
-              <button
-                id="analysis-open"
-                class="hero-info-button"
-                type="button"
-                aria-label="Open analysis notes"
-                title="Open analysis notes"
-              >
-                i
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HW1 QML Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/overlays.css" />
+  <link rel="stylesheet" href="css/charts.css" />
+</head>
+
+<body>
+  <div class="page-shell">
+    <aside class="control-rail">
+      <div class="hero-card">
+        <p class="eyebrow">D11224001 Huang, Chun-Ming</p>
+        <div class="hero-title-row">
+          <h1 id="page-title">HW1 QML Viewer</h1>
+          <div class="hero-info-wrap">
+            <button id="analysis-open" class="hero-info-button" type="button" aria-label="Open analysis notes"
+              title="Open analysis notes">
+              i
+            </button>
+            <div id="analysis-hint" class="analysis-hint" hidden>
+              <span class="analysis-hint-text">Tap here for notes</span>
+              <button id="analysis-hint-close" class="analysis-hint-close" type="button"
+                aria-label="Dismiss analysis hint">
+                ×
               </button>
-              <div id="analysis-hint" class="analysis-hint" hidden>
-                <span class="analysis-hint-text">Tap here for notes</span>
-                <button
-                  id="analysis-hint-close"
-                  class="analysis-hint-close"
-                  type="button"
-                  aria-label="Dismiss analysis hint"
-                >
-                  ×
-                </button>
-              </div>
             </div>
-          </div>
-          <p id="page-subtitle" class="muted">
-            Loading experiment summary...
-          </p>
-        </div>
-
-        <div class="panel-card">
-          <div class="panel-header">
-            <h2>Results</h2>
-            <span id="export-status" class="status-pill">loading</span>
-          </div>
-          <div id="loading-panel" class="loading-panel" hidden>
-            <div class="loading-meta">
-              <strong id="loading-label">Preparing viewer…</strong>
-              <span id="loading-percent">0%</span>
-            </div>
-            <div class="loading-track" aria-hidden="true">
-              <div id="loading-bar" class="loading-bar"></div>
-            </div>
-          </div>
-          <label class="slider-label hidden-control" for="run-select">Run</label>
-          <select id="run-select" class="run-select hidden-control"></select>
-          <div class="results-table-wrap">
-            <table class="results-table">
-              <thead>
-                <tr>
-                  <th>Test</th>
-                  <th>Train</th>
-                  <th>Run</th>
-                  <th>Q</th>
-                  <th>L</th>
-                </tr>
-              </thead>
-              <tbody id="results-table-body"></tbody>
-            </table>
-          </div>
-          <p id="run-note" class="muted">
-            Choose a runtime export to compare different hyperparameters.
-          </p>
-        </div>
-
-        <div class="panel-card experiment-card">
-          <div class="panel-header">
-            <h2>Experiment</h2>
-          </div>
-          <div class="experiment-scroll">
-            <div class="reference-stack experiment-reference-stack">
-              <figure class="reference-figure">
-                <img
-                  id="circuit-image"
-                  class="previewable-image"
-                  alt="Circuit diagram"
-                  data-preview-caption="Current circuit diagram"
-                />
-                <figcaption>Current circuit diagram</figcaption>
-              </figure>
-              <figure class="reference-figure">
-                <img
-                  id="fourier-image"
-                  class="previewable-image"
-                  alt="Fourier spectrum"
-                  data-preview-caption="Current Fourier spectrum"
-                />
-                <figcaption>Current Fourier spectrum</figcaption>
-              </figure>
-            </div>
-            <dl id="experiment-meta" class="meta-list"></dl>
           </div>
         </div>
-
-      </aside>
-
-      <main class="content-pane">
-        <section class="canvas-card">
-          <div class="section-heading">
-            <div>
-              <h2>Train And Test Snapshot</h2>
-            </div>
-          </div>
-          <div class="heatmap-grid">
-            <article class="heatmap-card">
-              <div class="heatmap-header">Train Surface + Train Samples</div>
-              <div id="train-overlay-plot" class="plot-surface plot-surface-hero"></div>
-            </article>
-            <article class="heatmap-card">
-              <div class="heatmap-header">Test Surface + Test Samples</div>
-              <div id="test-overlay-plot" class="plot-surface plot-surface-hero"></div>
-            </article>
-            <article class="heatmap-card error-column-card">
-              <div class="heatmap-header">Error Maps</div>
-              <div class="error-column">
-                <div class="error-panel">
-                  <div class="error-panel-title">Train Absolute Error</div>
-                  <div id="train-error-plot" class="plot-surface plot-surface-tall"></div>
-                </div>
-                <div class="error-panel">
-                  <div class="error-panel-title">Test Absolute Error</div>
-                  <div id="test-error-plot" class="plot-surface plot-surface-tall"></div>
-                </div>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section class="canvas-card">
-          <div class="section-heading">
-            <div>
-              <div class="timeline-title-row">
-                <h2>Loss By Step</h2>
-                <span id="current-step-label" class="timeline-title-pill">Final snapshot</span>
-                <div class="timeline-slider-inline">
-                  <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
-                </div>
-                <div id="timeline-metrics" class="timeline-metrics-row">
-                  <span id="timeline-caption" class="timeline-title-metrics timeline-title-metrics-status">
-                    Waiting for per-step trajectory export.
-                  </span>
-                  <span id="train-mse-pill" class="timeline-title-pill timeline-metric-pill" hidden>
-                    Train MSE —
-                  </span>
-                  <span id="test-mse-pill" class="timeline-title-pill timeline-metric-pill timeline-metric-pill-test" hidden>
-                    Test MSE —
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="chart-wrap">
-            <div id="loss-chart" class="plot-surface plot-surface-wide"></div>
-            <div id="chart-empty" class="chart-empty">
-              No step timeline has been exported yet. The viewer layout is ready
-              to replay training snapshots once `timeline_steps` are added.
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
-
-    <div id="image-lightbox" class="image-lightbox" hidden aria-hidden="true">
-      <div class="image-lightbox-backdrop" data-lightbox-close="true"></div>
-      <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Image preview">
-        <button
-          id="image-lightbox-close"
-          class="image-lightbox-close"
-          type="button"
-          aria-label="Close image preview"
-        >
-          ×
-        </button>
-        <img id="image-lightbox-image" class="image-lightbox-image" alt="Preview" />
-        <p id="image-lightbox-caption" class="image-lightbox-caption"></p>
+        <p id="page-subtitle" class="muted">
+          Loading experiment summary...
+        </p>
       </div>
-    </div>
 
-    <div id="analysis-modal" class="analysis-modal" hidden aria-hidden="true">
-      <div class="analysis-modal-backdrop" data-analysis-close="true"></div>
-      <div class="analysis-modal-dialog" role="dialog" aria-modal="true" aria-label="Problem 1 analysis">
-        <button
-          id="analysis-close"
-          class="analysis-modal-close"
-          type="button"
-          aria-label="Close analysis"
-        >
-          ×
-        </button>
-        <div class="analysis-modal-content">
-          <div id="analysis-markdown" class="analysis-markdown">
-            Loading analysis notes...
+      <div class="panel-card">
+        <div class="panel-header">
+          <h2>Results</h2>
+          <span id="export-status" class="status-pill">loading</span>
+        </div>
+        <div id="loading-panel" class="loading-panel" hidden>
+          <div class="loading-meta">
+            <strong id="loading-label">Preparing viewer…</strong>
+            <span id="loading-percent">0%</span>
           </div>
+          <div class="loading-track" aria-hidden="true">
+            <div id="loading-bar" class="loading-bar"></div>
+          </div>
+        </div>
+        <label class="slider-label hidden-control" for="run-select">Run</label>
+        <select id="run-select" class="run-select hidden-control"></select>
+        <div class="results-table-wrap">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>Test</th>
+                <th>Train</th>
+                <th>Run</th>
+                <th>Q</th>
+                <th>L</th>
+              </tr>
+            </thead>
+            <tbody id="results-table-body"></tbody>
+          </table>
+        </div>
+        <p id="run-note" class="muted">
+          Choose a runtime export to compare different hyperparameters.
+        </p>
+      </div>
+
+      <div class="panel-card experiment-card">
+        <div class="panel-header">
+          <h2>Experiment</h2>
+        </div>
+        <div class="experiment-scroll">
+          <div class="reference-stack experiment-reference-stack">
+            <figure class="reference-figure">
+              <img id="circuit-image" class="previewable-image" alt="Circuit diagram"
+                data-preview-caption="Current circuit diagram" />
+              <figcaption>Current circuit diagram</figcaption>
+            </figure>
+            <figure class="reference-figure">
+              <img id="fourier-image" class="previewable-image" alt="Fourier spectrum"
+                data-preview-caption="Current Fourier spectrum" />
+              <figcaption>Current Fourier spectrum</figcaption>
+            </figure>
+          </div>
+          <dl id="experiment-meta" class="meta-list"></dl>
+        </div>
+      </div>
+
+    </aside>
+
+    <main class="content-pane">
+      <section class="canvas-card">
+        <div class="section-heading">
+          <div>
+            <h2>Train And Test Snapshot</h2>
+          </div>
+        </div>
+        <div class="heatmap-grid">
+          <article class="heatmap-card">
+            <div class="heatmap-header">Train Surface + Train Samples</div>
+            <div id="train-overlay-plot" class="plot-surface plot-surface-hero"></div>
+          </article>
+          <article class="heatmap-card">
+            <div class="heatmap-header">Test Surface + Test Samples</div>
+            <div id="test-overlay-plot" class="plot-surface plot-surface-hero"></div>
+          </article>
+          <article class="heatmap-card error-column-card">
+            <div class="heatmap-header">Error Maps</div>
+            <div class="error-column">
+              <div class="error-panel">
+                <div class="error-panel-title">Train Absolute Error</div>
+                <div id="train-error-plot" class="plot-surface plot-surface-tall"></div>
+              </div>
+              <div class="error-panel">
+                <div class="error-panel-title">Test Absolute Error</div>
+                <div id="test-error-plot" class="plot-surface plot-surface-tall"></div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="canvas-card">
+        <div class="section-heading">
+          <div>
+            <div class="timeline-title-row">
+              <h2>Loss By Step</h2>
+              <span id="current-step-label" class="timeline-title-pill">Final snapshot</span>
+              <div class="timeline-slider-inline">
+                <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
+              </div>
+              <div id="timeline-metrics" class="timeline-metrics-row">
+                <span id="timeline-caption" class="timeline-title-metrics timeline-title-metrics-status">
+                  Waiting for per-step trajectory export.
+                </span>
+                <span id="train-mse-pill" class="timeline-title-pill timeline-metric-pill" hidden>
+                  Train MSE —
+                </span>
+                <span id="test-mse-pill" class="timeline-title-pill timeline-metric-pill timeline-metric-pill-test"
+                  hidden>
+                  Test MSE —
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <div id="loss-chart" class="plot-surface plot-surface-wide"></div>
+          <div id="chart-empty" class="chart-empty">
+            No step timeline has been exported yet. The viewer layout is ready
+            to replay training snapshots once `timeline_steps` are added.
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="image-lightbox" class="image-lightbox" hidden aria-hidden="true">
+    <div class="image-lightbox-backdrop" data-lightbox-close="true"></div>
+    <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Image preview">
+      <button id="image-lightbox-close" class="image-lightbox-close" type="button" aria-label="Close image preview">
+        ×
+      </button>
+      <img id="image-lightbox-image" class="image-lightbox-image" alt="Preview" />
+      <p id="image-lightbox-caption" class="image-lightbox-caption"></p>
+    </div>
+  </div>
+
+  <div id="analysis-modal" class="analysis-modal" hidden aria-hidden="true">
+    <div class="analysis-modal-backdrop" data-analysis-close="true"></div>
+    <div class="analysis-modal-dialog" role="dialog" aria-modal="true" aria-label="Problem 1 analysis">
+      <button id="analysis-close" class="analysis-modal-close" type="button" aria-label="Close analysis">
+        ×
+      </button>
+      <div class="analysis-modal-content">
+        <div id="analysis-markdown" class="analysis-markdown">
+          Loading analysis notes...
         </div>
       </div>
     </div>
+  </div>
 
-    <script src="js/app.js" type="module"></script>
-  </body>
+  <script src="js/app.js" type="module"></script>
+</body>
+
 </html>

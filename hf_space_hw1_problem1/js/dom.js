@@ -1,6 +1,6 @@
 export const manifestUrls = [
-  "./runtime/viewer_manifest.json",
-  "./data/viewer_manifest.template.json",
+    "./runtime/viewer_manifest.json",
+    "./data/viewer_manifest.template.json",
 ];
 
 // DOM element references
@@ -44,22 +44,22 @@ export const lossChart = document.getElementById("loss-chart");
 
 // Shared mutable state
 export const state = {
-  currentManifest: null,
-  currentData: null,
-  currentRunId: null,
-  overlayCameraStates: { train: null, test: null },
-  cameraSyncLocked: false,
-  activeLoadToken: 0,
-  analysisMarkdownLoaded: false,
+    currentManifest: null,
+    currentData: null,
+    currentRunId: null,
+    overlayCameraStates: { train: null, test: null },
+    cameraSyncLocked: false,
+    activeLoadToken: 0,
+    analysisMarkdownLoaded: false,
 };
 
 export const defaultOverlayCamera = {
-  eye: { x: 1.5, y: 1.3, z: 0.95 },
+    eye: { x: 1.5, y: 1.3, z: 0.95 },
 };
 
 export function cloneCamera(camera) {
-  if (!camera) {
-    return null;
-  }
-  return JSON.parse(JSON.stringify(camera));
+    if (!camera) {
+        return null;
+    }
+    return JSON.parse(JSON.stringify(camera));
 }

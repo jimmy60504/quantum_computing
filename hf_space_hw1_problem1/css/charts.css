@@ -1,198 +1,198 @@
 .heatmap-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  flex: 1 1 auto;
-  min-height: 0;
-  align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
 }
 
 .heatmap-card {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 20px;
-  border: 1px solid rgba(23, 33, 29, 0.08);
-  background: var(--panel-strong);
-  min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid rgba(23, 33, 29, 0.08);
+    background: var(--panel-strong);
+    min-height: 0;
 }
 
 .heatmap-header {
-  padding: 14px 16px;
-  font-weight: 700;
-  border-bottom: 1px solid rgba(23, 33, 29, 0.08);
+    padding: 14px 16px;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(23, 33, 29, 0.08);
 }
 
 .plot-surface {
-  width: 100%;
-  min-height: 360px;
+    width: 100%;
+    min-height: 360px;
 }
 
 .plot-surface-hero {
-  min-height: clamp(230px, 33vh, 380px);
-  flex: 1 1 auto;
+    min-height: clamp(230px, 33vh, 380px);
+    flex: 1 1 auto;
 }
 
 .plot-surface-tall {
-  min-height: clamp(104px, 13vh, 154px);
+    min-height: clamp(104px, 13vh, 154px);
 }
 
 .plot-surface-wide {
-  min-height: clamp(168px, 22vh, 250px);
-  height: 100%;
+    min-height: clamp(168px, 22vh, 250px);
+    height: 100%;
 }
 
 .chart-wrap {
-  position: relative;
-  min-height: 0;
-  padding: 2px 0 0;
-  flex: 1 1 auto;
-  display: flex;
+    position: relative;
+    min-height: 0;
+    padding: 2px 0 0;
+    flex: 1 1 auto;
+    display: flex;
 }
 
 #loss-chart {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  border-radius: 18px;
-  border: 1px solid rgba(23, 33, 29, 0.08);
-  background:
-    linear-gradient(180deg, rgba(13, 143, 113, 0.05), rgba(13, 143, 113, 0)),
-    white;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border-radius: 18px;
+    border: 1px solid rgba(23, 33, 29, 0.08);
+    background:
+        linear-gradient(180deg, rgba(13, 143, 113, 0.05), rgba(13, 143, 113, 0)),
+        white;
 }
 
 .chart-empty {
-  position: absolute;
-  inset: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  text-align: center;
-  border: 1px dashed rgba(23, 33, 29, 0.18);
-  border-radius: 18px;
-  background: rgba(255, 252, 245, 0.85);
-  color: var(--muted);
-  font-weight: 500;
-  z-index: 2;
+    position: absolute;
+    inset: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    border: 1px dashed rgba(23, 33, 29, 0.18);
+    border-radius: 18px;
+    background: rgba(255, 252, 245, 0.85);
+    color: var(--muted);
+    font-weight: 500;
+    z-index: 2;
 }
 
 .chart-empty[hidden] {
-  display: none !important;
+    display: none !important;
 }
 
 .error-column-card {
-  display: flex;
-  flex-direction: column;
+    display: flex;
+    flex-direction: column;
 }
 
 .error-column {
-  display: grid;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  padding: 14px;
-  flex: 1 1 auto;
-  min-height: 0;
+    display: grid;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 14px;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .error-panel {
-  display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
-  overflow: hidden;
-  border-radius: 16px;
-  border: 1px solid rgba(23, 33, 29, 0.08);
-  background: rgba(255, 255, 255, 0.55);
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(23, 33, 29, 0.08);
+    background: rgba(255, 255, 255, 0.55);
 }
 
 .error-panel-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 10px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-align: center;
-  color: var(--muted);
-  border-right: 1px solid rgba(23, 33, 29, 0.08);
-  background: rgba(255, 252, 245, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--muted);
+    border-right: 1px solid rgba(23, 33, 29, 0.08);
+    background: rgba(255, 252, 245, 0.72);
 }
 
-.content-pane > .canvas-card:first-child {
-  flex: 1 1 56%;
-  display: flex;
-  flex-direction: column;
+.content-pane>.canvas-card:first-child {
+    flex: 1 1 56%;
+    display: flex;
+    flex-direction: column;
 }
 
-.content-pane > .canvas-card:last-child {
-  flex: 1 1 44%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+.content-pane>.canvas-card:last-child {
+    flex: 1 1 44%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 @media (max-width: 1500px) {
-  .heatmap-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+    .heatmap-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 
-  .error-column-card {
-    grid-column: 1 / -1;
-  }
+    .error-column-card {
+        grid-column: 1 / -1;
+    }
 }
 
 @media (max-width: 1200px) {
-  .timeline-title-row {
-    flex-wrap: wrap;
-  }
+    .timeline-title-row {
+        flex-wrap: wrap;
+    }
 
-  .timeline-slider-inline {
-    flex: 1 1 220px;
-    min-width: 180px;
-    max-width: 320px;
-  }
+    .timeline-slider-inline {
+        flex: 1 1 220px;
+        min-width: 180px;
+        max-width: 320px;
+    }
 }
 
 @media (max-width: 1100px) {
-  body {
-    height: auto;
-    overflow: auto;
-  }
+    body {
+        height: auto;
+        overflow: auto;
+    }
 
-  .page-shell {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
+    .page-shell {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
 
-  .heatmap-grid {
-    grid-template-columns: 1fr;
-  }
+    .heatmap-grid {
+        grid-template-columns: 1fr;
+    }
 
-  .control-rail,
-  .content-pane {
-    overflow: visible;
-  }
+    .control-rail,
+    .content-pane {
+        overflow: visible;
+    }
 
-  .analysis-modal {
-    padding: 14px;
-  }
+    .analysis-modal {
+        padding: 14px;
+    }
 
-  .analysis-modal-dialog {
-    width: min(100%, calc(100vw - 28px));
-    max-height: calc(100vh - 28px);
-  }
+    .analysis-modal-dialog {
+        width: min(100%, calc(100vw - 28px));
+        max-height: calc(100vh - 28px);
+    }
 
-  .analysis-modal-content {
-    padding: 22px 18px 22px;
-    max-height: calc(100vh - 28px);
-  }
+    .analysis-modal-content {
+        padding: 22px 18px 22px;
+        max-height: calc(100vh - 28px);
+    }
 
-  .analysis-hint {
-    right: auto;
-    left: -12px;
-  }
+    .analysis-hint {
+        right: auto;
+        left: -12px;
+    }
 
-  .analysis-hint::before {
-    right: auto;
-    left: 18px;
-  }
+    .analysis-hint::before {
+        right: auto;
+        left: 18px;
+    }
 }
