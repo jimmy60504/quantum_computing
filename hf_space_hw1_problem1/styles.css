@@ -754,6 +754,13 @@ input[type="range"] {
   border-radius: 18px;
   border: 1px solid rgba(23, 33, 29, 0.1);
   box-shadow: 0 12px 30px rgba(23, 33, 29, 0.08);
+  cursor: zoom-in;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.analysis-markdown img:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(20, 30, 28, 0.14);
 }
 
 .analysis-markdown ul,

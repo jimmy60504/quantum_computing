@@ -106,10 +106,14 @@ function closeAnalysisModal() {
   analysisModal.setAttribute("aria-hidden", "true");
 }
 
-function bindImageLightbox() {
-  previewableImages.forEach((image) => {
+function bindPreviewableImages(images) {
+  images.forEach((image) => {
     image.addEventListener("click", () => openImageLightbox(image));
   });
+}
+
+function bindImageLightbox() {
+  bindPreviewableImages(previewableImages);
 
   imageLightbox?.addEventListener("click", (event) => {
     const closeRequested =
@@ -176,6 +180,14 @@ async function ensureAnalysisMarkdown() {
       globalThis.marked?.parse?.(markdown) ??
       `<pre>${markdown.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[char]))}</pre>`;
     analysisMarkdown.innerHTML = rendered;
+    const analysisImages = Array.from(analysisMarkdown.querySelectorAll("img"));
+    analysisImages.forEach((image) => {
+      image.classList.add("previewable-image");
+      if (!image.dataset.previewCaption && image.alt) {
+        image.dataset.previewCaption = image.alt;
+      }
+    });
+    bindPreviewableImages(analysisImages);
     analysisMarkdownLoaded = true;
   } catch (error) {
     console.error(error);
