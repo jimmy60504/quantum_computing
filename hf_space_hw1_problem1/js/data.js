@@ -125,3 +125,14 @@ export async function loadRunData(path, loadToken) {
     text += decoder.decode();
     return JSON.parse(text);
 }
+
+export async function loadRunChunk(path, loadToken) {
+    const response = await fetch(withCacheBust(path), { cache: "no-store" });
+    if (!response.ok) {
+        throw new Error(`Failed to load run chunk: ${path}`);
+    }
+    if (loadToken !== state.activeLoadToken) {
+        throw new Error("Stale chunk load aborted.");
+    }
+    return response.json();
+}

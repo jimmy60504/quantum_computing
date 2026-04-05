@@ -15,11 +15,89 @@ import {
 } from "./charts.js";
 import {
     formatMetric, formatInteger, appendMetaRow, withCacheBust,
-    setLoadingState, loadManifest, loadRunData,
+    setLoadingState, loadManifest, loadRunData, loadRunChunk,
 } from "./data.js";
 
 function getRunEncoding(run, data) {
     return run?.encoding_mode ?? run?.encoding ?? data?.experiment?.encoding ?? null;
+}
+
+function getChunkPaths(data) {
+    return (data.timeline_chunks || []).map((chunk) => chunk.path).filter(Boolean);
+}
+
+function updatePrefetchProgress(completed, total) {
+    if (!total) {
+        return;
+    }
+    const percent = 82 + (completed / total) * 18;
+    setLoadingState({
+        visible: completed < total,
+        label: `Streaming epoch chunks ${completed}/${total}`,
+        percent,
+        status: completed < total ? "streaming" : "ready",
+    });
+}
+
+async function fetchChunkIntoCache(chunkPath, loadToken, { announce = false } = {}) {
+    if (state.currentRunChunkCache[chunkPath]) {
+        return state.currentRunChunkCache[chunkPath];
+    }
+    if (state.currentRunChunkInflight[chunkPath]) {
+        return state.currentRunChunkInflight[chunkPath];
+    }
+
+    if (announce) {
+        const epochMatch = chunkPath.match(/_epoch_(\d+)\.json$/);
+        const epochLabel = epochMatch ? String(Number(epochMatch[1])) : "?";
+        setLoadingState({
+            visible: true,
+            label: `Loading epoch ${epochLabel} details`,
+            percent: 92,
+            status: "rendering",
+        });
+    }
+
+    const promise = loadRunChunk(chunkPath, loadToken)
+        .then((chunk) => {
+            state.currentRunChunkCache[chunkPath] = chunk;
+            delete state.currentRunChunkInflight[chunkPath];
+            return chunk;
+        })
+        .catch((error) => {
+            delete state.currentRunChunkInflight[chunkPath];
+            throw error;
+        });
+
+    state.currentRunChunkInflight[chunkPath] = promise;
+    return promise;
+}
+
+function prefetchChunkStream(data, loadToken, prefetchToken) {
+    const chunkPaths = getChunkPaths(data);
+    if (!chunkPaths.length) {
+        return;
+    }
+
+    const pump = async () => {
+        updatePrefetchProgress(Object.keys(state.currentRunChunkCache).length, chunkPaths.length);
+        for (const chunkPath of chunkPaths) {
+            if (prefetchToken !== state.activePrefetchToken || loadToken !== state.activeLoadToken) {
+                return;
+            }
+            await fetchChunkIntoCache(chunkPath, loadToken);
+            updatePrefetchProgress(Object.keys(state.currentRunChunkCache).length, chunkPaths.length);
+            if (prefetchToken !== state.activePrefetchToken || loadToken !== state.activeLoadToken) {
+                return;
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 0));
+        }
+        updatePrefetchProgress(chunkPaths.length, chunkPaths.length);
+    };
+
+    pump().catch((error) => {
+        console.warn("Chunk prefetch stopped:", error);
+    });
 }
 
 function renderResultsTable(runs, selectedRunId) {
@@ -68,33 +146,68 @@ function renderResultsTable(runs, selectedRunId) {
     });
 }
 
-function refreshStepState(data, index) {
+async function resolveStepPayload(data, index, loadToken) {
+    const steps = data.timeline_steps || [];
+    const summaryStep = steps[index];
+    if (!summaryStep) {
+        return null;
+    }
+    if (summaryStep.heatmaps) {
+        return summaryStep;
+    }
+    if (!summaryStep.chunk_path) {
+        return summaryStep;
+    }
+
+    const chunkPath = summaryStep.chunk_path;
+    const chunk = await fetchChunkIntoCache(chunkPath, loadToken, { announce: true });
+    const chunkSteps = chunk.timeline_steps || [];
+    const fullStep = chunkSteps.find(
+        (step) => Number(step.global_step) === Number(summaryStep.global_step)
+    );
+    if (!fullStep) {
+        throw new Error(`Step ${summaryStep.global_step} missing from chunk ${chunkPath}`);
+    }
+    return { ...fullStep, chunk_path: chunkPath };
+}
+
+async function refreshStepState(data, index, stepToken) {
     const steps = data.timeline_steps || [];
     if (!steps.length) {
         renderEmptyState();
         return;
     }
 
-    const current = steps[index];
-    const trainHeatmaps = current.heatmaps?.train;
-    const testHeatmaps = current.heatmaps?.test;
-    const trainPredictionGrid = trainHeatmaps?.prediction;
-    const testPredictionGrid = testHeatmaps?.prediction;
-    const trainTargetGrid = trainHeatmaps?.target;
-    const testTargetGrid = testHeatmaps?.target;
-
-    currentStepLabel.textContent = current.label || `Step ${index + 1}`;
+    const summaryStep = steps[index];
+    currentStepLabel.textContent = summaryStep.label || `Step ${index + 1}`;
     if (timelineCaption) {
         timelineCaption.hidden = true;
     }
     if (trainMsePill) {
-        trainMsePill.textContent = `Train MSE ${current.train_mse.toFixed(6)}`;
+        trainMsePill.textContent = `Train MSE ${formatMetric(summaryStep.train_mse)}`;
         trainMsePill.hidden = false;
     }
     if (testMsePill) {
-        testMsePill.textContent = `Test MSE ${current.test_mse.toFixed(6)}`;
+        testMsePill.textContent = `Test MSE ${formatMetric(summaryStep.test_mse)}`;
         testMsePill.hidden = false;
     }
+    renderLossChart(steps, index);
+
+    const current = await resolveStepPayload(data, index, state.activeLoadToken);
+    if (stepToken !== state.activeStepToken) {
+        return;
+    }
+    if (!current?.heatmaps) {
+        renderEmptyState();
+        return;
+    }
+
+    const trainHeatmaps = current.heatmaps.train;
+    const testHeatmaps = current.heatmaps.test;
+    const trainPredictionGrid = trainHeatmaps?.prediction;
+    const testPredictionGrid = testHeatmaps?.prediction;
+    const trainTargetGrid = trainHeatmaps?.target;
+    const testTargetGrid = testHeatmaps?.target;
 
     renderOverlayPlot(
         trainOverlayPlot,
@@ -126,7 +239,7 @@ function refreshStepState(data, index) {
         colorscale: "Magma",
         showTitle: false,
     });
-    renderLossChart(steps, index);
+    setLoadingState({ visible: false });
 }
 
 function populateExperimentMeta(data, selectedRun) {
@@ -168,6 +281,8 @@ function populateExperimentMeta(data, selectedRun) {
 
 async function applyRun(runId) {
     state.currentRunId = runId;
+    state.currentRunChunkCache = {};
+    state.currentRunChunkInflight = {};
     state.overlayCameraStates.train = null;
     state.overlayCameraStates.test = null;
     const loadToken = ++state.activeLoadToken;
@@ -228,13 +343,16 @@ async function applyRun(runId) {
         stepSlider.value = "0";
     }
 
-    refreshStepState(state.currentData, 0);
-    setLoadingState({
-        visible: false,
-        label: "Viewer ready",
-        percent: 100,
-        status: "ready",
-    });
+    await refreshStepState(state.currentData, 0, ++state.activeStepToken);
+    prefetchChunkStream(state.currentData, loadToken, ++state.activePrefetchToken);
+    if (!getChunkPaths(state.currentData).length) {
+        setLoadingState({
+            visible: false,
+            label: "Viewer ready",
+            percent: 100,
+            status: "ready",
+        });
+    }
 }
 
 async function main() {
@@ -271,9 +389,13 @@ async function main() {
         await applyRun(event.target.value);
     });
 
-    stepSlider.addEventListener("input", (event) => {
+    stepSlider.addEventListener("input", async (event) => {
         if (state.currentData) {
-            refreshStepState(state.currentData, Number(event.target.value));
+            await refreshStepState(
+                state.currentData,
+                Number(event.target.value),
+                ++state.activeStepToken
+            );
         }
     });
 }

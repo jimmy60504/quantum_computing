@@ -30,10 +30,11 @@ def build_viewer_payload(
     timeline_steps: list[dict[str, object]],
     train_points: dict[str, list[float]],
     test_points: dict[str, list[float]],
+    timeline_chunks: list[dict[str, object]] | None = None,
     status: str = "trajectory export",
     description: str | None = None,
 ) -> dict[str, object]:
-    return {
+    payload = {
         "title": "Data Reuploading Explorer",
         "subtitle": "QCAA HW1 Problem 1 regression results",
         "status": status,
@@ -60,6 +61,9 @@ def build_viewer_payload(
             "path": f"./runtime/{viewer_export_path.name}",
         },
     }
+    if timeline_chunks:
+        payload["timeline_chunks"] = timeline_chunks
+    return payload
 
 
 def write_snapshot_export(
@@ -116,6 +120,7 @@ def write_viewer_export(
     timeline_steps: list[dict[str, object]],
     train_points: dict[str, list[float]],
     test_points: dict[str, list[float]],
+    timeline_chunks: list[dict[str, object]] | None = None,
 ) -> Path:
     viewer_export_path.parent.mkdir(parents=True, exist_ok=True)
     payload = build_viewer_payload(
@@ -125,6 +130,7 @@ def write_viewer_export(
         timeline_steps,
         train_points,
         test_points,
+        timeline_chunks=timeline_chunks,
     )
     viewer_export_path.write_text(json.dumps(payload, indent=2))
     return viewer_export_path

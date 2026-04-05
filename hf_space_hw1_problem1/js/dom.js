@@ -47,9 +47,13 @@ export const state = {
     currentManifest: null,
     currentData: null,
     currentRunId: null,
+    currentRunChunkCache: {},
+    currentRunChunkInflight: {},
     overlayCameraStates: { train: null, test: null },
     cameraSyncLocked: false,
     activeLoadToken: 0,
+    activeStepToken: 0,
+    activePrefetchToken: 0,
     analysisMarkdownLoaded: false,
 };
 
