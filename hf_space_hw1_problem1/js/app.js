@@ -15,7 +15,8 @@ import {
 } from "./charts.js";
 import {
     formatMetric, formatInteger, appendMetaRow, withCacheBust,
-    setLoadingState, loadManifest, loadRunData, loadRunChunk,
+    setLoadingState, loadManifest, loadRunData, loadRunChunk, loadRuntimeSource,
+    resolveRuntimeAssetPath,
 } from "./data.js";
 
 function getRunEncoding(run, data) {
@@ -352,6 +353,7 @@ async function applyRun(runId) {
     setImageSourceWithFallback(circuitImage, [state.currentData.assets.circuit]);
     if (fourierImage) {
         setImageSourceWithFallback(fourierImage, [
+            resolveRuntimeAssetPath(`./runtime/${selectedRun.id}_fourier_spectrum.png`),
             `./runtime/${selectedRun.id}_fourier_spectrum.png`,
             `./HW1/problem1/artifacts/${selectedRun.id}_fourier_spectrum.png`,
         ]);
@@ -392,6 +394,7 @@ async function main() {
         percent: 2,
         status: "loading",
     });
+    await loadRuntimeSource();
     state.currentManifest = await loadManifest();
 
     const runs = state.currentManifest.runs || [];

@@ -1,6 +1,6 @@
-export const manifestUrls = [
-    "./runtime/viewer_manifest.json",
-    "./data/viewer_manifest.template.json",
+export const runtimeSourceUrls = [
+    "./data/runtime_source.json",
+    "./data/runtime_source.template.json",
 ];
 
 // DOM element references
@@ -49,6 +49,7 @@ export const state = {
     currentManifest: null,
     currentData: null,
     currentRunId: null,
+    runtimeSource: null,
     currentRunChunkCache: {},
     currentRunChunkInflight: {},
     overlayCameraStates: { train: null, test: null },
