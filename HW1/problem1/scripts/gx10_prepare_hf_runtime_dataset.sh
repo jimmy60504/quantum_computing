@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 RUNTIME_DIR="${REPO_ROOT}/hf_space_hw1_problem1/runtime"
 OUTPUT_DIR="${HF_RUNTIME_DATASET_OUTPUT_DIR:-${REPO_ROOT}/.out/hf_space_hw1_runtime_dataset}"
 MANIFEST_PATH="${RUNTIME_DIR}/viewer_manifest.json"

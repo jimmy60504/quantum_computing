@@ -7,19 +7,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 REMOTE_HOST="${GX10_HOST:-gx10}"
 REMOTE_REPO_DIR="${GX10_REPO_DIR:-/home/jimmy/quantum_computing}"
+SYNC_EXCLUDE_FILE="${GX10_SYNC_EXCLUDE_FILE:-${REPO_ROOT}/.gx10-sync-excludes}"
 
 rsync -av --delete \
-  --exclude '.git' \
-  --exclude '.DS_Store' \
-  --exclude '__pycache__' \
-  --exclude '*.pyc' \
-  --exclude '.out' \
-  --exclude 'mlruns' \
-  --exclude 'mlartifacts' \
-  --exclude 'mlflow.db' \
-  --exclude '.out/mlflow-postgres-data' \
-  --exclude 'HW1/artifacts' \
-  --exclude 'HW1/problem1/artifacts' \
-  --exclude 'logs' \
-  --exclude 'hf_space_hw1_problem1/runtime' \
+  --exclude-from "${REPO_ROOT}/.gitignore" \
+  --exclude-from "${SYNC_EXCLUDE_FILE}" \
   "${REPO_ROOT}/" "${REMOTE_HOST}:${REMOTE_REPO_DIR}/"

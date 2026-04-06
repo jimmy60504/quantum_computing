@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 SOURCE_DIR="${REPO_ROOT}/hf_space_hw1_problem1"
 RUNTIME_DIR="${SOURCE_DIR}/runtime"
 OUTPUT_DIR="${HF_SPACE_OUTPUT_DIR:-${REPO_ROOT}/.out/hf_space_hw1_problem1_publish}"
@@ -72,8 +72,6 @@ rsync -av \
 
 rsync -av \
   "${REPO_ROOT}/scripts/gx10_run_py.sh" \
-  "${REPO_ROOT}/scripts/gx10_hf_viewer.sh" \
-  "${REPO_ROOT}/scripts/gx10_prepare_hf_space.sh" \
   "${SOURCE_EXPORT_DIR}/scripts/"
 
 echo "Prepared HF Space bundle at: ${OUTPUT_DIR}"

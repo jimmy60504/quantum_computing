@@ -1,0 +1,7 @@
+.claude/
+.vscode/
+.git
+mlartifacts/
+.out/mlflow-postgres-data/
+HW1/problem1/artifacts/
+hf_space_hw1_problem2/runtime/

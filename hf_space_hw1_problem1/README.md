@@ -134,7 +134,7 @@ From the experiment repo on `gx10`:
 
 ```bash
 cd ~/quantum_computing
-./scripts/gx10_prepare_hf_space.sh
+./HW1/problem1/scripts/gx10_prepare_hf_space.sh
 ```
 
 This creates a clean publish directory under:
@@ -156,7 +156,7 @@ To prepare and upload in one step:
 ```bash
 cd ~/quantum_computing
 HF_SPACE_RUNTIME_DATASET_REPO=jimmy60504/data-reuploading-demo-runtime-test \
-./scripts/gx10_upload_hf_space.sh jimmy60504/Data-Reuploading-Demo
+./HW1/problem1/scripts/gx10_upload_hf_space.sh jimmy60504/Data-Reuploading-Demo
 ```
 
 The Space upload uses `hf upload`, which is more reliable here than

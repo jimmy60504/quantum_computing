@@ -12,7 +12,7 @@ fi
 REPO_ID="$1"
 REVISION="${2:-main}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 HF_CLI_VENV="${HF_CLI_VENV:-${HOME}/.venvs/hf-cli}"
 HF_BIN="${HF_CLI_VENV}/bin/hf"
 SPACE_OUTPUT_DIR="${HF_SPACE_OUTPUT_DIR:-${REPO_ROOT}/.out/hf_space_hw1_problem1_publish}"
@@ -28,9 +28,9 @@ fi
 if [[ -n "${RUNTIME_DATASET_REPO}" ]]; then
   HF_SPACE_RUNTIME_DATASET_REPO="${RUNTIME_DATASET_REPO}" \
   HF_SPACE_RUNTIME_DATASET_REVISION="${RUNTIME_DATASET_REVISION}" \
-  "${REPO_ROOT}/scripts/gx10_prepare_hf_space.sh"
+  "${REPO_ROOT}/HW1/problem1/scripts/gx10_prepare_hf_space.sh"
 else
-  "${REPO_ROOT}/scripts/gx10_prepare_hf_space.sh"
+  "${REPO_ROOT}/HW1/problem1/scripts/gx10_prepare_hf_space.sh"
 fi
 
 "${HF_BIN}" repos create "${REPO_ID}" --repo-type space --space-sdk static --public --exist-ok >/dev/null

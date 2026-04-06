@@ -312,7 +312,7 @@ For the standard multi-run workflow, use:
 
 ```bash
 cd ~/quantum_computing
-./scripts/gx10_hw1_prob1_full_pipeline.sh
+./HW1/problem1/scripts/gx10_hw1_prob1_full_pipeline.sh
 ```
 
 This runs the configured matrix in the script and produces:
@@ -356,14 +356,14 @@ Preview on `gx10`:
 
 ```bash
 cd ~/quantum_computing
-./scripts/gx10_hf_viewer.sh
+./HW1/problem1/scripts/gx10_hf_viewer.sh
 ```
 
 Prepare a publish bundle:
 
 ```bash
 cd ~/quantum_computing
-./scripts/gx10_prepare_hf_space.sh
+./HW1/problem1/scripts/gx10_prepare_hf_space.sh
 ```
 
 Preview the static scaffold locally if needed:

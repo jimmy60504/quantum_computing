@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 HF_VIEWER_PORT="${HF_VIEWER_PORT:-7860}"
 GX10_LIGHT_CPUSET_DEFAULT="${GX10_LIGHT_CPUSET_DEFAULT:-0-4,10-14}"
 CPUSET="${GX10_CPUSET:-${GX10_LIGHT_CPUSET_DEFAULT}}"
