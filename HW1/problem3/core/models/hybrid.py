@@ -63,8 +63,7 @@ class QuantumHead(nn.Module):
 
             return [qml.expval(qml.PauliZ(i)) for i in range(num_qubits)]
 
-        self._circuit = torch.vmap(circuit, in_dims=(0, None))
-        self._raw_circuit = circuit
+        self._circuit = circuit
 
         # Classical post-processing: num_qubits expectations → 10 logits
         self.post = nn.Linear(num_qubits, num_classes)
@@ -73,9 +72,11 @@ class QuantumHead(nn.Module):
         """features: (batch, feature_dim) → logits: (batch, 10)."""
         x = self.pre(features)  # (batch, num_qubits)
         x = torch.tanh(x) * np.pi  # scale to [-pi, pi] for angle encoding
-        expectations = self._circuit(x, self.weights)  # (batch, num_qubits)
-        if isinstance(expectations, tuple):
-            expectations = torch.stack(expectations, dim=-1)
+        # Loop over batch — vmap has compatibility issues with multi-qubit return
+        expectations = torch.stack([
+            torch.stack(self._circuit(x[i], self.weights))
+            for i in range(x.shape[0])
+        ]).to(torch.float32)  # PennyLane returns float64; cast for nn.Linear
         return self.post(expectations)
 
 

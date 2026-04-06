@@ -88,6 +88,31 @@
     <!-- ── main pane ──────────────────────────────────────────────────── -->
     <main class="content-pane">
 
+      <!-- confusion matrices -->
+      <section class="canvas-card">
+        <div class="section-heading">
+          <div>
+            <h2>Confusion Matrices</h2>
+          </div>
+        </div>
+        <div class="confusion-grid">
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-mlp">MLP</span>
+              CNN + MLP Baseline
+            </div>
+            <div id="cm-mlp" class="confusion-plot"></div>
+          </article>
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-qnn">QNN</span>
+              CNN + QNN Hybrid
+            </div>
+            <div id="cm-qnn" class="confusion-plot"></div>
+          </article>
+        </div>
+      </section>
+
       <!-- training curves -->
       <section class="canvas-card">
         <div class="section-heading">
@@ -115,31 +140,6 @@
           <div id="chart-empty" class="chart-empty">
             No training data exported yet.
           </div>
-        </div>
-      </section>
-
-      <!-- confusion matrices -->
-      <section class="canvas-card">
-        <div class="section-heading">
-          <div>
-            <h2>Confusion Matrices</h2>
-          </div>
-        </div>
-        <div class="confusion-grid">
-          <article class="confusion-card">
-            <div class="confusion-header">
-              <span class="confusion-method-tag tag-mlp">MLP</span>
-              CNN + MLP Baseline
-            </div>
-            <div id="cm-mlp" class="confusion-plot"></div>
-          </article>
-          <article class="confusion-card">
-            <div class="confusion-header">
-              <span class="confusion-method-tag tag-qnn">QNN</span>
-              CNN + QNN Hybrid
-            </div>
-            <div id="cm-qnn" class="confusion-plot"></div>
-          </article>
         </div>
       </section>
 
