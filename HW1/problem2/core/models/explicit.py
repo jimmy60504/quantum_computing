@@ -48,7 +48,8 @@ class ExplicitQuantumClassifier(nn.Module):
                 qml.CNOT(wires=[0, 1])
             return qml.expval(qml.PauliZ(0))
 
-        self._circuit = qml.vmap(circuit, in_axes=(0, None))
+        self._raw_circuit = circuit
+        self._circuit = torch.vmap(circuit, in_dims=(0, None))
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
         self.loss_fn = nn.BCELoss()
 
