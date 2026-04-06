@@ -634,39 +634,56 @@ def assemble_viewer_stage(config: Prob2Config, run_dir: Path) -> tuple[Path, Pat
         )
         print(f"  - {method_name}: {n_snaps} snapshots", flush=True)
 
-    _stage("Building viewer timeline (initial + final)")
+    _stage("Building viewer timeline (all exported epochs)")
+
+    # Collect the epoch indices exported by the trainable methods.  Both
+    # explicit and reuploading produce snapshots at the same epochs so we
+    # use explicit/circle as the reference.  Kernel only has epoch 0 (its
+    # boundary is fixed), which we replicate for every epoch.
+    ref_snaps = artifacts["explicit"]["datasets"]["circle"]["snapshots"]
+    exported_epochs: list[int] = [int(s["epoch"]) for s in ref_snaps]
+
+    # Build a quick lookup: method → dataset → epoch → snapshot
+    snap_lookup: dict[str, dict[str, dict[int, dict]]] = {}
+    for method_name in METHOD_ORDER:
+        snap_lookup[method_name] = {}
+        for ds_name in DATASET_ORDER:
+            snaps = artifacts[method_name]["datasets"][ds_name]["snapshots"]
+            snap_lookup[method_name][ds_name] = {int(s["epoch"]): s for s in snaps}
+
     timeline_steps: list[dict[str, object]] = []
-    for label, snap_idx in [("Initial", 0), ("Final", -1)]:
-        boundaries: dict[str, dict] = {m: {} for m in METHOD_ORDER}
-        accuracies: dict[str, dict] = {m: {} for m in METHOD_ORDER}
-        losses: dict[str, dict] = {m: {} for m in METHOD_ORDER}
-        all_snaps: list[dict] = []
-        max_epoch = 0
+    for epoch in exported_epochs:
+        boundaries: dict[str, dict] = {}
+        accuracies: dict[str, dict] = {}
+        losses: dict[str, dict] = {}
+        all_snaps_at_epoch: list[dict] = []
 
         for method_name in METHOD_ORDER:
+            boundaries[method_name] = {}
+            accuracies[method_name] = {}
+            losses[method_name] = {}
             for ds_name in DATASET_ORDER:
-                snaps = artifacts[method_name]["datasets"][ds_name]["snapshots"]
-                snap = snaps[snap_idx]
+                lookup = snap_lookup[method_name][ds_name]
+                # For kernel (epoch-invariant) fall back to epoch 0
+                snap = lookup.get(epoch) or lookup.get(0) or next(iter(lookup.values()))
                 boundaries[method_name][ds_name] = snap["boundary"]
                 accuracies[method_name][ds_name] = snap["test_acc"]
                 losses[method_name][ds_name] = {
                     "train": snap["train_loss"],
                     "test": snap["test_loss"],
                 }
-                all_snaps.append(snap)
-                if snap_idx == -1:
-                    max_epoch = max(max_epoch, snap["epoch"])
+                all_snaps_at_epoch.append(snap)
 
-        epoch = max_epoch if snap_idx == -1 else 0
+        label = "Initial" if epoch == 0 else f"Epoch {epoch}"
         timeline_steps.append(
             {
                 "label": label,
                 "epoch": epoch,
                 "global_step": epoch,
-                "train_acc": float(np.mean([s["train_acc"] for s in all_snaps])),
-                "test_acc": float(np.mean([s["test_acc"] for s in all_snaps])),
-                "train_loss": float(np.mean([s["train_loss"] for s in all_snaps])),
-                "test_loss": float(np.mean([s["test_loss"] for s in all_snaps])),
+                "train_acc": float(np.mean([s["train_acc"] for s in all_snaps_at_epoch])),
+                "test_acc": float(np.mean([s["test_acc"] for s in all_snaps_at_epoch])),
+                "train_loss": float(np.mean([s["train_loss"] for s in all_snaps_at_epoch])),
+                "test_loss": float(np.mean([s["test_loss"] for s in all_snaps_at_epoch])),
                 "accuracies": accuracies,
                 "losses": losses,
                 "scatter": scatter,
@@ -683,7 +700,7 @@ def assemble_viewer_stage(config: Prob2Config, run_dir: Path) -> tuple[Path, Pat
 
     viewer_export_path = resolve_viewer_export_path(config)
     viewer_manifest_path = resolve_viewer_manifest_path(config)
-    write_viewer_export(config, viewer_export_path, timeline_steps, scatter, {"best_test_acc": best_test_acc})
+    write_viewer_export(config, viewer_export_path, timeline_steps, scatter, {"best_test_acc": best_test_acc}, use_chunks=True)
     update_viewer_manifest(viewer_manifest_path, viewer_export_path, config, best_test_acc, timeline_steps)
 
     print(f"Viewer written → {viewer_export_path}", flush=True)

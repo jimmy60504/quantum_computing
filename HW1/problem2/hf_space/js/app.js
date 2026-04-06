@@ -12,7 +12,7 @@ import { bindImageLightbox, bindAnalysisModal, maybeShowAnalysisHint } from "./o
 import { renderBoundaryPlot, renderAccuracyChart, renderEmptyState } from "./charts.js";
 import {
     formatMetric, formatInteger, appendMetaRow, withCacheBust,
-    setLoadingState, loadManifest, loadRunData, loadRuntimeSource,
+    setLoadingState, loadManifest, loadRunData, loadRunChunk, loadRuntimeSource,
 } from "./data.js";
 
 const METHODS = ["explicit", "kernel", "reuploading"];
@@ -23,6 +23,105 @@ const DATASETS = ["circle", "moons"];
 function formatAcc(v) {
     if (v === null || v === undefined) return "—";
     return (v * 100).toFixed(1) + "%";
+}
+
+// ── chunk helpers ─────────────────────────────────────────────────────────────
+
+function getChunkPaths(data) {
+    return (data.timeline_chunks || []).map((c) => c.path).filter(Boolean);
+}
+
+function updatePrefetchProgress(completed, total) {
+    if (!total) return;
+    const percent = 82 + (completed / total) * 18;
+    setLoadingState({
+        visible: completed < total,
+        label: `Streaming epoch chunks ${completed}/${total}`,
+        percent,
+        status: completed < total ? "streaming" : "ready",
+    });
+}
+
+async function fetchChunkIntoCache(chunkPath, loadToken, { announce = false } = {}) {
+    if (state.currentRunChunkCache[chunkPath]) {
+        return state.currentRunChunkCache[chunkPath];
+    }
+    if (state.currentRunChunkInflight[chunkPath]) {
+        return state.currentRunChunkInflight[chunkPath];
+    }
+
+    if (announce) {
+        const epochMatch = chunkPath.match(/_epoch_(\d+)\.json$/);
+        const epochLabel = epochMatch ? String(Number(epochMatch[1])) : "?";
+        setLoadingState({
+            visible: true,
+            label: `Loading epoch ${epochLabel} boundaries`,
+            percent: 92,
+            status: "rendering",
+        });
+    }
+
+    const promise = loadRunChunk(chunkPath, loadToken)
+        .then((chunk) => {
+            state.currentRunChunkCache[chunkPath] = chunk;
+            delete state.currentRunChunkInflight[chunkPath];
+            return chunk;
+        })
+        .catch((error) => {
+            delete state.currentRunChunkInflight[chunkPath];
+            throw error;
+        });
+
+    state.currentRunChunkInflight[chunkPath] = promise;
+    return promise;
+}
+
+function prefetchChunkStream(data, loadToken, prefetchToken) {
+    const chunkPaths = getChunkPaths(data);
+    if (!chunkPaths.length) return;
+
+    const pump = async () => {
+        updatePrefetchProgress(Object.keys(state.currentRunChunkCache).length, chunkPaths.length);
+        for (const chunkPath of chunkPaths) {
+            if (prefetchToken !== state.activePrefetchToken || loadToken !== state.activeLoadToken) return;
+            await fetchChunkIntoCache(chunkPath, loadToken);
+            updatePrefetchProgress(Object.keys(state.currentRunChunkCache).length, chunkPaths.length);
+            if (prefetchToken !== state.activePrefetchToken || loadToken !== state.activeLoadToken) return;
+            await new Promise((resolve) => window.setTimeout(resolve, 0));
+        }
+        updatePrefetchProgress(chunkPaths.length, chunkPaths.length);
+    };
+
+    pump().catch((error) => console.warn("Chunk prefetch stopped:", error));
+}
+
+/**
+ * Resolve the full step payload for a given index.
+ * - Inline mode:  step already has `boundaries` → return as-is.
+ * - Chunked mode: step has `chunk_path`          → load chunk, find step by epoch.
+ */
+async function resolveStepPayload(data, index, loadToken) {
+    const steps = data.timeline_steps || [];
+    const summaryStep = steps[index];
+    if (!summaryStep) return null;
+
+    // Inline: boundaries already present
+    if (summaryStep.boundaries) return summaryStep;
+
+    // Chunked: fetch from chunk file
+    if (!summaryStep.chunk_path) return summaryStep;
+
+    const chunkPath = summaryStep.chunk_path;
+    const chunk = await fetchChunkIntoCache(chunkPath, loadToken, { announce: true });
+    const chunkSteps = chunk.timeline_steps || [];
+    const targetEpoch = Number(summaryStep.epoch ?? summaryStep.global_step ?? index);
+    const fullStep = chunkSteps.find(
+        (s) => Number(s.epoch ?? s.global_step) === targetEpoch
+    );
+    if (!fullStep) {
+        throw new Error(`Epoch ${targetEpoch} missing from chunk ${chunkPath}`);
+    }
+    return { ...fullStep, chunk_path: chunkPath };
 }
 
 function renderResultsTable(runs, selectedRunId) {
@@ -82,31 +181,42 @@ async function refreshStepState(data, index, stepToken) {
         return;
     }
 
-    const step = steps[index];
-    if (currentStepLabel) currentStepLabel.textContent = step.label || `Epoch ${step.epoch ?? index}`;
+    // Render summary metrics immediately (no chunk needed)
+    const summaryStep = steps[index];
+    if (currentStepLabel) currentStepLabel.textContent = summaryStep.label || `Epoch ${summaryStep.epoch ?? index}`;
     if (timelineCaption) timelineCaption.hidden = true;
 
     if (trainAccPill) {
-        trainAccPill.textContent = `Train ${formatAcc(step.train_acc)}`;
+        trainAccPill.textContent = `Train ${formatAcc(summaryStep.train_acc)}`;
         trainAccPill.hidden = false;
     }
     if (testAccPill) {
-        testAccPill.textContent = `Test ${formatAcc(step.test_acc)}`;
+        testAccPill.textContent = `Test ${formatAcc(summaryStep.test_acc)}`;
         testAccPill.hidden = false;
     }
 
     renderAccuracyChart(steps, index);
-    updateAccPills(step);
+    updateAccPills(summaryStep);
 
+    // Resolve full step payload (may require a chunk fetch)
+    const step = await resolveStepPayload(data, index, state.activeLoadToken);
     if (stepToken !== state.activeStepToken) return;
+
+    if (!step?.boundaries) {
+        // Chunked data not yet available — leave boundary panels as-is
+        return;
+    }
+
+    // Scatter lives at top level (fixed) or falls back to per-step copy
+    const scatterSource = data.scatter ?? {};
 
     // Decision boundaries
     METHODS.forEach((method, mi) => {
         DATASETS.forEach((dataset, di) => {
             const container = boundaryPlots[mi]?.[di];
             if (!container) return;
-            const heatmap = step?.boundaries?.[method]?.[dataset] ?? null;
-            const points = step?.scatter?.[dataset] ?? null;
+            const heatmap = step.boundaries?.[method]?.[dataset] ?? null;
+            const points = scatterSource[dataset] ?? step.scatter?.[dataset] ?? null;
             renderBoundaryPlot(container, heatmap, points, method);
         });
     });
@@ -192,7 +302,10 @@ async function applyRun(runId) {
     }
 
     await refreshStepState(state.currentData, 0, ++state.activeStepToken);
-    setLoadingState({ visible: false, label: "Viewer ready", percent: 100, status: "ready" });
+    prefetchChunkStream(state.currentData, loadToken, ++state.activePrefetchToken);
+    if (!getChunkPaths(state.currentData).length) {
+        setLoadingState({ visible: false, label: "Viewer ready", percent: 100, status: "ready" });
+    }
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────

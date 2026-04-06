@@ -59,9 +59,57 @@ def write_viewer_export(
     timeline_steps: list[dict[str, object]],
     scatter: dict[str, list[dict[str, object]]],
     summary: dict[str, object] | None = None,
+    use_chunks: bool = False,
 ) -> Path:
+    """Write the viewer export JSON.
+
+    When *use_chunks* is True the heavy boundary data is split into per-epoch
+    chunk files under ``<export_dir>/chunks/``.  Each timeline step in the main
+    JSON then carries a ``chunk_path`` pointer instead of inline ``boundaries``.
+    The main JSON also gets a ``timeline_chunks`` list used by the frontend for
+    background prefetching.
+
+    When *use_chunks* is False (default, backward-compatible) all data is
+    written inline into a single file.
+    """
     viewer_export_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = build_viewer_payload(config, viewer_export_path, timeline_steps, scatter, summary)
+
+    if use_chunks:
+        chunks_dir = viewer_export_path.parent / "chunks"
+        chunks_dir.mkdir(parents=True, exist_ok=True)
+
+        slim_steps: list[dict[str, object]] = []
+        chunk_index: list[dict[str, object]] = []
+
+        for step in timeline_steps:
+            epoch = int(step.get("epoch", step.get("global_step", 0)))
+            chunk_name = f"{viewer_export_path.stem}_epoch_{epoch:04d}.json"
+            chunk_path_abs = chunks_dir / chunk_name
+            chunk_rel_path = f"./runtime/chunks/{chunk_name}"
+
+            # Write chunk: only the heavy boundary data keyed by epoch
+            chunk_payload: dict[str, object] = {
+                "timeline_steps": [
+                    {
+                        "epoch": epoch,
+                        "global_step": step.get("global_step", epoch),
+                        "boundaries": step.get("boundaries"),
+                    }
+                ]
+            }
+            chunk_path_abs.write_text(json.dumps(chunk_payload) + "\n")
+
+            # Slim step: metrics only + chunk pointer
+            slim_step = {k: v for k, v in step.items() if k not in ("boundaries", "scatter")}
+            slim_step["chunk_path"] = chunk_rel_path
+            slim_steps.append(slim_step)
+            chunk_index.append({"path": chunk_rel_path})
+
+        payload = build_viewer_payload(config, viewer_export_path, slim_steps, scatter, summary)
+        payload["timeline_chunks"] = chunk_index
+    else:
+        payload = build_viewer_payload(config, viewer_export_path, timeline_steps, scatter, summary)
+
     viewer_export_path.write_text(json.dumps(payload, indent=2) + "\n")
     return viewer_export_path
 
