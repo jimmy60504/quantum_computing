@@ -103,7 +103,7 @@
     <main class="content-pane">
 
       <!-- decision boundary grid -->
-      <section class="canvas-card" style="flex: 2 1 0; min-height: 0;">
+      <section class="canvas-card">
         <div class="section-heading">
           <div>
             <h2>Decision Boundaries</h2>
@@ -115,7 +115,9 @@
           3 rows (methods) × 2 columns (datasets)
           Row labels are rendered as boundary-header method tags.
         -->
-        <div class="boundary-grid" style="margin-top: 12px;">
+        <div class="boundary-grid">
+
+          <!-- Row 1: Circle dataset ─────────────────────────── -->
 
           <!-- Explicit — Circle -->
           <article class="boundary-card">
@@ -125,16 +127,6 @@
               <span id="acc-explicit-circle" class="acc-pill">—</span>
             </div>
             <div id="bp-explicit-circle" class="boundary-plot"></div>
-          </article>
-
-          <!-- Explicit — Moons -->
-          <article class="boundary-card">
-            <div class="boundary-header">
-              <span class="boundary-method-tag tag-explicit">Explicit</span>
-              Moons
-              <span id="acc-explicit-moons" class="acc-pill">—</span>
-            </div>
-            <div id="bp-explicit-moons" class="boundary-plot"></div>
           </article>
 
           <!-- Kernel — Circle -->
@@ -147,16 +139,6 @@
             <div id="bp-kernel-circle" class="boundary-plot"></div>
           </article>
 
-          <!-- Kernel — Moons -->
-          <article class="boundary-card">
-            <div class="boundary-header">
-              <span class="boundary-method-tag tag-kernel">Kernel</span>
-              Moons
-              <span id="acc-kernel-moons" class="acc-pill">—</span>
-            </div>
-            <div id="bp-kernel-moons" class="boundary-plot"></div>
-          </article>
-
           <!-- Reuploading — Circle -->
           <article class="boundary-card">
             <div class="boundary-header">
@@ -165,6 +147,28 @@
               <span id="acc-reupload-circle" class="acc-pill">—</span>
             </div>
             <div id="bp-reupload-circle" class="boundary-plot"></div>
+          </article>
+
+          <!-- Row 2: Moons dataset ──────────────────────────── -->
+
+          <!-- Explicit — Moons -->
+          <article class="boundary-card">
+            <div class="boundary-header">
+              <span class="boundary-method-tag tag-explicit">Explicit</span>
+              Moons
+              <span id="acc-explicit-moons" class="acc-pill">—</span>
+            </div>
+            <div id="bp-explicit-moons" class="boundary-plot"></div>
+          </article>
+
+          <!-- Kernel — Moons -->
+          <article class="boundary-card">
+            <div class="boundary-header">
+              <span class="boundary-method-tag tag-kernel">Kernel</span>
+              Moons
+              <span id="acc-kernel-moons" class="acc-pill">—</span>
+            </div>
+            <div id="bp-kernel-moons" class="boundary-plot"></div>
           </article>
 
           <!-- Reuploading — Moons -->
@@ -181,7 +185,7 @@
       </section>
 
       <!-- accuracy / loss chart -->
-      <section class="canvas-card" style="flex: 1 1 0; min-height: 0;">
+      <section class="canvas-card">
         <div class="section-heading">
           <div>
             <div class="timeline-title-row">

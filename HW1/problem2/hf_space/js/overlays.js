@@ -143,7 +143,7 @@ export function bindAnalysisModal() {
     }));
     answersOpenButton?.addEventListener("click", () => openAnalysisModal({
         sourcePath: "./ANSWERS.md",
-        label: "Problem 1 answers",
+        label: "Problem 2 answers",
     }));
     analysisCloseButton?.addEventListener("click", closeAnalysisModal);
     analysisHintClose?.addEventListener("click", dismissAnalysisHint);

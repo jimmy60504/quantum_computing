@@ -1,19 +1,39 @@
+/* ── canvas-card flex column (lets children fill height) ────────────────── */
+
+.content-pane > .canvas-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.content-pane > .canvas-card:first-child {
+    flex: 2 1 0;
+    min-height: 0;
+}
+
+.content-pane > .canvas-card:last-child {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
 /* ── decision-boundary grid ─────────────────────────────────────────────── */
 
 .boundary-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 14px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 10px;
     flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
+    margin-top: 10px;
 }
 
 .boundary-card {
     display: flex;
     flex-direction: column;
     border: 1px solid var(--line);
-    border-radius: 18px;
+    border-radius: 14px;
     background: rgba(255, 255, 255, 0.55);
     overflow: hidden;
     min-height: 0;
@@ -22,23 +42,22 @@
 .boundary-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 8px 14px;
-    font-size: 0.8rem;
+    padding: 5px 10px;
+    font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     border-bottom: 1px solid var(--line);
     flex: 0 0 auto;
-    gap: 8px;
+    gap: 6px;
 }
 
 .boundary-method-tag {
     display: inline-flex;
     align-items: center;
-    height: 22px;
-    padding: 0 8px;
+    height: 20px;
+    padding: 0 7px;
     border-radius: 999px;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -60,21 +79,23 @@
     flex: 1 1 auto;
     min-height: 0;
     width: 100%;
+    overflow: hidden;
 }
 
-/* ── accuracy strip ─────────────────────────────────────────────────────── */
+/* ── accuracy pill ──────────────────────────────────────────────────────── */
 
 .acc-pill {
     display: inline-flex;
     align-items: center;
-    height: 22px;
-    padding: 0 8px;
+    height: 20px;
+    padding: 0 7px;
     border-radius: 999px;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     background: rgba(23, 33, 29, 0.07);
     color: var(--text);
+    margin-left: auto;
 }
 
 /* ── loss / accuracy chart ──────────────────────────────────────────────── */
@@ -83,6 +104,20 @@
     flex: 1 1 auto;
     min-height: 0;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    padding-top: 4px;
+}
+
+#loss-chart {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border-radius: 18px;
+    border: 1px solid rgba(23, 33, 29, 0.08);
+    background:
+        linear-gradient(180deg, rgba(13, 143, 113, 0.05), rgba(13, 143, 113, 0)),
+        white;
 }
 
 .plot-surface {
@@ -91,12 +126,13 @@
 }
 
 .plot-surface-wide {
-    min-height: 200px;
+    min-height: 160px;
+    flex: 1 1 auto;
 }
 
 .chart-empty {
     position: absolute;
-    inset: 0;
+    inset: 4px 0 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -104,6 +140,13 @@
     font-size: 0.9rem;
     color: var(--muted);
     text-align: center;
+    border: 1px dashed rgba(23, 33, 29, 0.18);
+    border-radius: 18px;
+    background: rgba(255, 252, 245, 0.85);
+}
+
+.chart-empty[hidden] {
+    display: none !important;
 }
 
 /* ── dataset toggle ─────────────────────────────────────────────────────── */
@@ -134,4 +177,28 @@
     background: white;
     color: var(--brand);
     box-shadow: 0 2px 8px rgba(20, 30, 28, 0.1);
+}
+
+/* ── responsive ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+    body {
+        height: auto;
+        overflow: auto;
+    }
+
+    .page-shell {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .content-pane > .canvas-card:first-child,
+    .content-pane > .canvas-card:last-child {
+        flex: none;
+        min-height: 480px;
+    }
+
+    .boundary-grid {
+        grid-template-rows: repeat(3, 240px);
+    }
 }

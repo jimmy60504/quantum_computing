@@ -43,6 +43,23 @@ export const accPills = [
 
 export const lossChart = document.getElementById("loss-chart");
 
+// Image lightbox
+export const imageLightbox        = document.getElementById("image-lightbox");
+export const imageLightboxImage   = document.getElementById("image-lightbox-image");
+export const imageLightboxCaption = document.getElementById("image-lightbox-caption");
+export const imageLightboxClose   = document.getElementById("image-lightbox-close");
+
+// Analysis / answers modal
+export const analysisOpenButton = document.getElementById("analysis-open");
+export const answersOpenButton  = document.getElementById("answers-open");
+export const analysisModal      = document.getElementById("analysis-modal");
+export const analysisCloseButton = document.getElementById("analysis-close");
+export const analysisHint       = document.getElementById("analysis-hint");
+export const analysisHintClose  = document.getElementById("analysis-hint-close");
+export const analysisModalLabel = document.getElementById("analysis-modal-label");
+export const analysisMarkdown   = document.getElementById("analysis-markdown");
+export const previewableImages  = Array.from(document.querySelectorAll(".previewable-image"));
+
 export const state = {
     currentRunId: null,
     currentManifest: null,
@@ -53,4 +70,5 @@ export const state = {
     currentRunChunkCache: {},
     currentRunChunkInflight: {},
     activeDataset: "circle",   // "circle" | "moons"
+    markdownCache: {},
 };
