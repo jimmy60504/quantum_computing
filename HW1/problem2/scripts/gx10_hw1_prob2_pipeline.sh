@@ -55,7 +55,6 @@ run_method_bg() {
     local method="$1"; shift
     local log="${LOG_DIR}/${RUN_NAME}-${method}.log"
     : > "${log}"
-    echo "[$(ts)] [${RUN_NAME}] ── ${method} → background (log: ${log})"
     GX10_DOCKER_NETWORK=gx10-mlflow \
     ./scripts/gx10_run_py.sh HW1/problem2/train.py run \
         --run-dir          "${RUN_DIR}" \
@@ -64,7 +63,10 @@ run_method_bg() {
         --run-name         "${RUN_NAME}" \
         "$@" \
         > "${log}" 2>&1 &
-    echo $!
+    # Write PID to file — calling via $() would create a subshell and the
+    # background process would not be a child of the main shell.
+    echo $! > "${log%.log}.pid"
+    echo "[$(ts)] [${RUN_NAME}] ── ${method} PID=$! → ${log}"
 }
 
 # ── Clean old runtime exports ─────────────────────────────────────────────────
@@ -106,30 +108,26 @@ for config in "${CONFIGS[@]}"; do
         --n-samples "${SAMPLES}"
 
     # ── Stage 2: train all three methods in parallel ───────────────────────────
+    # Call run_method_bg directly (NOT via $()) so background jobs are children
+    # of this shell and wait() can track them.  PIDs are written to .pid files.
     echo "[$(ts)] [${RUN_NAME}] ── 2/3 launching methods in parallel..."
 
-    PID_E=$(run_method_bg explicit \
+    run_method_bg explicit \
         --epochs              "${EPOCHS}" \
         --layers-explicit     "${le}" \
-        --viewer-export-every "${EXPORT_EVERY}")
+        --viewer-export-every "${EXPORT_EVERY}"
 
-    PID_R=$(run_method_bg reuploading \
+    run_method_bg reuploading \
         --epochs               "${EPOCHS}" \
         --layers-reuploading   "${lr}" \
-        --viewer-export-every  "${EXPORT_EVERY}")
+        --viewer-export-every  "${EXPORT_EVERY}"
 
-    PID_K=$(run_method_bg kernel)   # no epochs — one kernel matrix fit
+    run_method_bg kernel   # no epochs — one kernel matrix fit
 
-    echo "[$(ts)] [${RUN_NAME}]    explicit    PID=${PID_E}"
-    echo "[$(ts)] [${RUN_NAME}]    reuploading PID=${PID_R}"
-    echo "[$(ts)] [${RUN_NAME}]    kernel      PID=${PID_K}"
-
-    # Wait for all three; collect exit codes individually so we can report
-    # which method failed rather than just aborting on the first one.
     FAIL=0
-    wait "${PID_E}" || { echo "[$(ts)] [${RUN_NAME}] ERROR: explicit failed"; FAIL=1; }
-    wait "${PID_R}" || { echo "[$(ts)] [${RUN_NAME}] ERROR: reuploading failed"; FAIL=1; }
-    wait "${PID_K}" || { echo "[$(ts)] [${RUN_NAME}] ERROR: kernel failed"; FAIL=1; }
+    wait "$(cat "${LOG_DIR}/${RUN_NAME}-explicit.pid")"    || { echo "[$(ts)] [${RUN_NAME}] ERROR: explicit failed";    FAIL=1; }
+    wait "$(cat "${LOG_DIR}/${RUN_NAME}-reuploading.pid")" || { echo "[$(ts)] [${RUN_NAME}] ERROR: reuploading failed"; FAIL=1; }
+    wait "$(cat "${LOG_DIR}/${RUN_NAME}-kernel.pid")"      || { echo "[$(ts)] [${RUN_NAME}] ERROR: kernel failed";      FAIL=1; }
 
     if [[ "${FAIL}" -ne 0 ]]; then
         echo "[$(ts)] [${RUN_NAME}] One or more methods failed — skipping assemble."
