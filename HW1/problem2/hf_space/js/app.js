@@ -33,13 +33,17 @@ function renderResultsTable(runs, selectedRunId) {
         row.dataset.runId = run.id;
         if (run.id === selectedRunId) row.classList.add("is-selected");
 
+        const layerText = (run.num_layers_explicit !== undefined || run.num_layers_reuploading !== undefined)
+            ? `E${formatInteger(run.num_layers_explicit)} / R${formatInteger(run.num_layers_reuploading)}`
+            : formatInteger(run.num_layers);
+
         const values = [
             { text: formatAcc(run.best_test_acc ?? run.final_test_acc), className: "metric-cell metric-cell-strong" },
-            { text: run.method ?? "—" },
-            { text: run.dataset ?? "—" },
+            { text: (run.methods ?? [run.method]).filter(Boolean).join(", ") || "—" },
+            { text: (run.datasets ?? [run.dataset]).filter(Boolean).join(" + ") || "—" },
             { text: run.label || run.id, className: "run-cell" },
             { text: formatInteger(run.num_qubits) },
-            { text: formatInteger(run.num_layers) },
+            { text: layerText },
         ];
 
         values.forEach(({ text, className }) => {
@@ -123,7 +127,14 @@ function populateExperimentMeta(data, run) {
     appendMetaRow("Datasets",(data.experiment?.datasets ?? []).join(", "));
     appendMetaRow("Device",  data.experiment?.device);
     if (run?.num_qubits !== undefined) appendMetaRow("Qubits",  run.num_qubits);
-    if (run?.num_layers !== undefined) appendMetaRow("Layers",  run.num_layers);
+    if (run?.num_layers_explicit !== undefined || run?.num_layers_reuploading !== undefined) {
+        appendMetaRow(
+            "Layers (explicit / reupload)",
+            `${formatInteger(run?.num_layers_explicit)} / ${formatInteger(run?.num_layers_reuploading)}`,
+        );
+    } else if (run?.num_layers !== undefined) {
+        appendMetaRow("Layers",  run.num_layers);
+    }
     if (run?.num_params !== undefined) appendMetaRow("Params",  formatInteger(run.num_params));
     if (run?.train_time !== undefined) appendMetaRow("Train time", run.train_time);
     appendMetaRow("Note", data.experiment?.note);

@@ -12,8 +12,8 @@
     "note": "Run training on gx10 to populate hf_space_hw1_problem2/runtime/viewer_data.json."
   },
   "assets": {
-    "datasets_overview": "assets/problem2_datasets_overview.png",
-    "boundaries_grid": "assets/problem2_boundaries_placeholder.png"
+    "datasets_overview": "assets/preview_datasets.png",
+    "boundaries_grid": "assets/preview_boundaries.png"
   },
   "grid": {
     "resolution": 50

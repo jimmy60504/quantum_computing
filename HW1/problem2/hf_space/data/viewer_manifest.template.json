@@ -7,10 +7,14 @@
       "label": "Template / No runtime export yet",
       "path": "./data/viewer_data.template.json",
       "steps": 0,
-      "method": "data_reuploading",
-      "dataset": "circle",
-      "num_qubits": 1,
-      "num_layers": 1,
+      "method": "explicit + kernel + reuploading",
+      "dataset": "circle + moons",
+      "methods": ["explicit", "kernel", "reuploading"],
+      "datasets": ["circle", "moons"],
+      "num_qubits": 2,
+      "num_layers": 4,
+      "num_layers_explicit": 4,
+      "num_layers_reuploading": 4,
       "num_params": null,
       "best_test_acc": null
     }

@@ -38,7 +38,7 @@ Run on `gx10`:
 
 ```bash
 # training + export
-ssh gx10 "cd ~/quantum_computing && docker exec qc python HW1/problem2/train.py --export"
+ssh gx10 "cd ~/quantum_computing && GX10_DOCKER_NETWORK=gx10-mlflow ./scripts/gx10_run_py.sh HW1/problem2/train.py --run-name q2-l4-e50 --tracking-uri http://gx10-mlflow-server:5001"
 ```
 
 The export populates `runtime/viewer_data.json` which the viewer picks up

@@ -32,8 +32,11 @@ rng = np.random.default_rng(SEED)
 # ── datasets ──────────────────────────────────────────────────────────────────
 
 def make_circle_dataset(n=200, seed=SEED):
-    """Unit-circle binary classification: inside vs outside, centred at origin."""
-    X, y = make_circles(n_samples=n, noise=0.1, factor=0.5, random_state=seed)
+    """PennyLane demo circle dataset: points in [-1, 1]^2 labeled by radius."""
+    rng = np.random.default_rng(seed)
+    X = rng.uniform(low=-1.0, high=1.0, size=(n, 2))
+    radius = np.sqrt(2 / np.pi)
+    y = (np.linalg.norm(X, axis=1) < radius).astype(int)
     return X, y
 
 

@@ -35,7 +35,14 @@ class QuantumClassifier(Protocol):
     method_id: str
     method_label: str
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        epochs: int = 1,
+        batch_size: int = 32,
+        shuffle: bool = True,
+    ) -> dict[str, float] | None:
         ...
 
     def predict(self, X: np.ndarray) -> np.ndarray:

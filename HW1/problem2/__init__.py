@@ -1,5 +1,6 @@
-"""Scaffold for QCAA HW1 Problem 2 experiments."""
+"""HW1 Problem 2 package exports."""
 
-from .benchmark import METHOD_SPECS, DATASET_LOADERS
+from .benchmark import DATASET_LOADERS, METHOD_SPECS
+from .core import Prob2Config, train
 
-__all__ = ["METHOD_SPECS", "DATASET_LOADERS"]
+__all__ = ["DATASET_LOADERS", "METHOD_SPECS", "Prob2Config", "train"]
