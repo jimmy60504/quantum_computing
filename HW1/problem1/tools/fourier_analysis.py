@@ -11,10 +11,10 @@ import numpy as np
 
 
 def resolve_default_export_path() -> Path:
-    manifest_path = Path("hf_space_hw1_problem1") / "runtime" / "viewer_manifest.json"
+    manifest_path = Path("HW1") / "problem1" / "hf_space" / "runtime" / "viewer_manifest.json"
     if not manifest_path.exists():
         raise FileNotFoundError(
-            "Could not find hf_space_hw1_problem1/runtime/viewer_manifest.json. "
+            "Could not find HW1/problem1/hf_space/runtime/viewer_manifest.json. "
             "Pass --viewer-export explicitly or run on gx10 where the runtime exports live."
         )
 

@@ -122,7 +122,7 @@ If not, it falls back to the template data under `data/`.
 Serve the folder as a static site:
 
 ```bash
-cd hf_space_hw1_problem1
+cd HW1/problem1/hf_space
 python3 -m http.server 8000
 ```
 
@@ -140,13 +140,13 @@ cd ~/quantum_computing
 This creates a clean publish directory under:
 
 ```text
-.out/hf_space_hw1_problem1_publish/
+.out/hw1_problem1_hf_space_publish/
 ```
 
 The script copies:
 
-- the static app scaffold from `hf_space_hw1_problem1/`
-- the latest runtime exports from `hf_space_hw1_problem1/runtime/`
+- the static app scaffold from `HW1/problem1/hf_space/`
+- the latest runtime exports from `HW1/problem1/hf_space/runtime/`
 - a curated source snapshot under `source/`
 
 That publish directory is the one to push to a Hugging Face Static Space repo.

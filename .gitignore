@@ -12,6 +12,6 @@ build/
 mlflow.db
 HW1/artifacts/
 hf_space_hw1/runtime/
-hf_space_hw1_problem1/runtime/
+HW1/problem1/hf_space/runtime/
 logs/
 .out/

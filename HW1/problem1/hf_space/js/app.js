@@ -355,7 +355,7 @@ async function applyRun(runId) {
         setImageSourceWithFallback(fourierImage, [
             resolveRuntimeAssetPath(`./runtime/${selectedRun.id}_fourier_spectrum.png`),
             `./runtime/${selectedRun.id}_fourier_spectrum.png`,
-            `./HW1/problem1/artifacts/${selectedRun.id}_fourier_spectrum.png`,
+            `../artifacts/${selectedRun.id}_fourier_spectrum.png`,
         ]);
     }
     populateExperimentMeta(state.currentData, selectedRun);

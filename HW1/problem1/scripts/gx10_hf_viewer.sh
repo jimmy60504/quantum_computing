@@ -21,5 +21,5 @@ if [[ -n "${existing_pids}" ]]; then
   fi
 fi
 
-cd "${REPO_ROOT}/hf_space_hw1_problem1"
+cd "${REPO_ROOT}/HW1/problem1/hf_space"
 exec taskset -c "${CPUSET}" python3 -m http.server "${HF_VIEWER_PORT}"

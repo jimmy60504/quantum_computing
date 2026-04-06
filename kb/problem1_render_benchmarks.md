@@ -7,7 +7,7 @@ viewer workflow for `HW1/problem1`.
 
 - Workload: render snapshot chunks for a Problem 1 snapshot export
 - Historical benchmark source:
-  `hf_space_hw1_problem1/runtime/raw-q2-l2-e20-dist_snapshots.json`
+  `HW1/problem1/hf_space/runtime/raw-q2-l2-e20-dist_snapshots.json`
 - Main short benchmark slice: `0:32`
 - Main long benchmark slice: `0:224`
 

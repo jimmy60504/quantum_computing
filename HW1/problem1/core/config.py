@@ -25,6 +25,7 @@ ENCODING_CHOICES = (
 )
 LR_SCHEDULER_CHOICES = ("none", "cosine")
 RENDER_MODE_CHOICES = ("inline", "snapshots-only")
+HF_SPACE_DIR = Path("HW1") / "problem1" / "hf_space"
 
 
 @dataclass
@@ -101,7 +102,7 @@ def make_default_export_stem(config: Config) -> str:
 def resolve_viewer_export_path(config: Config) -> Path:
     if config.viewer_export_path:
         return Path(config.viewer_export_path)
-    return Path("hf_space_hw1_problem1") / "runtime" / f"{make_default_export_stem(config)}.json"
+    return HF_SPACE_DIR / "runtime" / f"{make_default_export_stem(config)}.json"
 
 
 def resolve_snapshot_export_path(config: Config, viewer_export_path: Path | None = None) -> Path:

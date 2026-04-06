@@ -157,7 +157,7 @@ def train(config: Config, num_samples: int) -> None:
         viewer_export_path = resolve_viewer_export_path(config)
         snapshot_export_path = resolve_snapshot_export_path(config, viewer_export_path)
         runtime_circuit_path = resolve_runtime_circuit_path(viewer_export_path)
-        viewer_manifest_path = Path("hf_space_hw1_problem1") / "runtime" / "viewer_manifest.json"
+        viewer_manifest_path = Path("HW1") / "problem1" / "hf_space" / "runtime" / "viewer_manifest.json"
 
         make_circuit_diagram(model, train_dataset[0][0], runtime_circuit_path)
         if config.render_mode == "inline":

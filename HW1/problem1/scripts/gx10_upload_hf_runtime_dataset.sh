@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 HF_CLI_VENV="${HF_CLI_VENV:-${HOME}/.venvs/hf-cli}"
 HF_BIN="${HF_CLI_VENV}/bin/hf"
-DATASET_OUTPUT_DIR="${HF_RUNTIME_DATASET_OUTPUT_DIR:-${REPO_ROOT}/.out/hf_space_hw1_runtime_dataset}"
+DATASET_OUTPUT_DIR="${HF_RUNTIME_DATASET_OUTPUT_DIR:-${REPO_ROOT}/.out/hw1_problem1_hf_runtime_dataset}"
 
 if [[ ! -x "${HF_BIN}" ]]; then
   python3 -m venv "${HF_CLI_VENV}"

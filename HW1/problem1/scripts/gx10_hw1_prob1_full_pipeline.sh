@@ -44,8 +44,8 @@ run_case() {
   if [[ -n "${RUN_TAG}" ]]; then
     run_name="${run_name}-${RUN_TAG}"
   fi
-  local snapshot_export="hf_space_hw1_problem1/runtime/${run_name}_snapshots.json"
-  local viewer_export="hf_space_hw1_problem1/runtime/${run_name}.json"
+  local snapshot_export="HW1/problem1/hf_space/runtime/${run_name}_snapshots.json"
+  local viewer_export="HW1/problem1/hf_space/runtime/${run_name}.json"
   local case_log="${RUN_LOG_DIR}/${run_name}.log"
 
   {

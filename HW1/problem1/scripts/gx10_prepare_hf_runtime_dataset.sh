@@ -4,8 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-RUNTIME_DIR="${REPO_ROOT}/hf_space_hw1_problem1/runtime"
-OUTPUT_DIR="${HF_RUNTIME_DATASET_OUTPUT_DIR:-${REPO_ROOT}/.out/hf_space_hw1_runtime_dataset}"
+RUNTIME_DIR="${REPO_ROOT}/HW1/problem1/hf_space/runtime"
+OUTPUT_DIR="${HF_RUNTIME_DATASET_OUTPUT_DIR:-${REPO_ROOT}/.out/hw1_problem1_hf_runtime_dataset}"
 MANIFEST_PATH="${RUNTIME_DIR}/viewer_manifest.json"
 INCLUDE_RUN_IDS="${HF_RUNTIME_DATASET_INCLUDE_RUN_IDS:-}"
 

@@ -24,7 +24,7 @@ The intended workflow is:
 
 - `HW1/problem1/`: current regression experiments, training pipeline, render tools
 - `HW1/problem2/`: classification scaffold
-- `hf_space_hw1_problem1/`: static Hugging Face viewer scaffold
+- `HW1/problem1/hf_space/`: static Hugging Face viewer scaffold for Problem 1
 - `scripts/`: sync, Docker-run wrappers, MLflow helpers, viewer helpers
 - `kb/`: lightweight research notes and templates
 - `hello_qiskit.py`, `pennylane_hello.py`, `qft_demo.py`: small local demos
@@ -101,7 +101,7 @@ The sync helper intentionally excludes runtime-heavy outputs such as:
 - `mlartifacts`
 - `mlflow.db`
 - `HW1/artifacts`
-- `hf_space_hw1_problem1/runtime`
+- `HW1/problem1/hf_space/runtime`
 
 That keeps local source and remote experiment artifacts separate.
 
@@ -279,10 +279,10 @@ Evaluate and merge metrics:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/tools/evaluate_snapshot_chunk.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json
+  --snapshot-export HW1/problem1/hf_space/runtime/phase-learnable-q1-l1-e20_snapshots.json
 
 ./scripts/gx10_run_py.sh HW1/problem1/tools/merge_evaluated_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
+  --snapshot-export HW1/problem1/hf_space/runtime/phase-learnable-q1-l1-e20_snapshots.json \
   --require-complete
 ```
 
@@ -291,10 +291,10 @@ Render and merge viewer output:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/tools/render_snapshot_chunk.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json
+  --snapshot-export HW1/problem1/hf_space/runtime/phase-learnable-q1-l1-e20_snapshots.json
 
 ./scripts/gx10_run_py.sh HW1/problem1/tools/merge_rendered_chunks.py \
-  --snapshot-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20_snapshots.json \
+  --snapshot-export HW1/problem1/hf_space/runtime/phase-learnable-q1-l1-e20_snapshots.json \
   --require-complete
 ```
 
@@ -303,7 +303,7 @@ Run Fourier analysis:
 ```bash
 cd ~/quantum_computing
 ./scripts/gx10_run_py.sh HW1/problem1/tools/fourier_analysis.py \
-  --viewer-export hf_space_hw1_problem1/runtime/phase-learnable-q1-l1-e20.json
+  --viewer-export HW1/problem1/hf_space/runtime/phase-learnable-q1-l1-e20.json
 ```
 
 ### Full pipeline helper
@@ -343,13 +343,13 @@ python -m HW1.problem2.scaffold --preview-datasets --write-plan
 ## Hugging Face viewer
 
 The static viewer scaffold lives in
-[`hf_space_hw1_problem1/`](./hf_space_hw1_problem1).
+[`HW1/problem1/hf_space/`](./HW1/problem1/hf_space).
 
 Recommended flow:
 
 1. Sync code to `gx10`.
 2. Run training and post-processing on `gx10`.
-3. Keep generated runtime files under `hf_space_hw1_problem1/runtime/` on `gx10`.
+3. Keep generated runtime files under `HW1/problem1/hf_space/runtime/` on `gx10`.
 4. Only prepare a publish bundle when you want to upload to Hugging Face.
 
 Preview on `gx10`:
@@ -369,7 +369,7 @@ cd ~/quantum_computing
 Preview the static scaffold locally if needed:
 
 ```bash
-cd hf_space_hw1_problem1
+cd HW1/problem1/hf_space
 python3 -m http.server 8000
 ```
 

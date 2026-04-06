@@ -46,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--viewer-manifest",
         type=Path,
-        default=Path("hf_space_hw1_problem1") / "runtime" / "viewer_manifest.json",
+        default=Path("HW1") / "problem1" / "hf_space" / "runtime" / "viewer_manifest.json",
     )
     parser.add_argument(
         "--require-complete",
