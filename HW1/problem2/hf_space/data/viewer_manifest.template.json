@@ -1,0 +1,18 @@
+{
+  "title": "QML Classifier Runs",
+  "default_run": "template",
+  "runs": [
+    {
+      "id": "template",
+      "label": "Template / No runtime export yet",
+      "path": "./data/viewer_data.template.json",
+      "steps": 0,
+      "method": "data_reuploading",
+      "dataset": "circle",
+      "num_qubits": 1,
+      "num_layers": 1,
+      "num_params": null,
+      "best_test_acc": null
+    }
+  ]
+}

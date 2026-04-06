@@ -1,0 +1,8 @@
+{
+  "mode": "local",
+  "runtime_root_url": "./",
+  "manifest_path": "./runtime/viewer_manifest.json",
+  "fallback_manifest_urls": [
+    "./data/viewer_manifest.template.json"
+  ]
+}

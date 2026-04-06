@@ -1,0 +1,22 @@
+{
+  "title": "QML Classifier Explorer",
+  "subtitle": "QCAA HW1 Problem 2 classification results",
+  "status": "template export",
+  "description": "The viewer first looks for a gx10-generated runtime export. If no runtime data exists, it falls back to this lightweight template.",
+  "experiment": {
+    "model": "PennyLane QML classifiers",
+    "task": "Binary classification (circle and moons datasets)",
+    "methods": ["explicit", "kernel", "reuploading"],
+    "datasets": ["circle", "moons"],
+    "device": "configurable: default.qubit or lightning.qubit",
+    "note": "Run training on gx10 to populate hf_space_hw1_problem2/runtime/viewer_data.json."
+  },
+  "assets": {
+    "datasets_overview": "assets/problem2_datasets_overview.png",
+    "boundaries_grid": "assets/problem2_boundaries_placeholder.png"
+  },
+  "grid": {
+    "resolution": 50
+  },
+  "timeline_steps": []
+}
