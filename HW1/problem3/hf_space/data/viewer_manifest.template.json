@@ -1,0 +1,16 @@
+{
+  "title": "Hybrid QNN Runs",
+  "default_run": "demo",
+  "runs": [
+    {
+      "id": "demo",
+      "label": "Demo (no runtime data)",
+      "path": "./data/viewer_data.template.json",
+      "epochs": 3,
+      "methods": ["mlp", "qnn"],
+      "num_qubits": 8,
+      "num_layers": 4,
+      "best_test_acc": null
+    }
+  ]
+}

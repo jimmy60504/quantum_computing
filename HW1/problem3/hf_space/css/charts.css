@@ -1,0 +1,156 @@
+/* ── canvas-card flex column ─────────────────────────────────────────── */
+
+.content-pane > .canvas-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.content-pane > .canvas-card:first-child {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
+.content-pane > .canvas-card:last-child {
+    flex: 1.2 1 0;
+    min-height: 0;
+}
+
+/* ── confusion matrix grid ─────────────────────────────────────────── */
+
+.confusion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.confusion-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.55);
+    overflow: hidden;
+    min-height: 0;
+}
+
+.confusion-header {
+    display: flex;
+    align-items: center;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--line);
+    flex: 0 0 auto;
+    gap: 6px;
+}
+
+.confusion-method-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.confusion-method-tag.tag-mlp {
+    background: rgba(91, 80, 200, 0.12);
+    color: #3a2f8a;
+}
+
+.confusion-method-tag.tag-qnn {
+    background: rgba(239, 131, 84, 0.12);
+    color: #8a4b10;
+}
+
+.confusion-plot {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+}
+
+/* ── loss / accuracy chart ─────────────────────────────────────────── */
+
+.chart-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding-top: 4px;
+}
+
+#loss-chart {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border-radius: 18px;
+    border: 1px solid rgba(23, 33, 29, 0.08);
+    background:
+        linear-gradient(180deg, rgba(13, 143, 113, 0.05), rgba(13, 143, 113, 0)),
+        white;
+}
+
+.plot-surface {
+    width: 100%;
+    height: 100%;
+}
+
+.plot-surface-wide {
+    min-height: 160px;
+    flex: 1 1 auto;
+}
+
+.chart-empty {
+    position: absolute;
+    inset: 4px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    font-size: 0.9rem;
+    color: var(--muted);
+    text-align: center;
+    border: 1px dashed rgba(23, 33, 29, 0.18);
+    border-radius: 18px;
+    background: rgba(255, 252, 245, 0.85);
+}
+
+.chart-empty[hidden] {
+    display: none !important;
+}
+
+/* ── responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+    body {
+        height: auto;
+        overflow: auto;
+    }
+
+    .page-shell {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .content-pane > .canvas-card:first-child,
+    .content-pane > .canvas-card:last-child {
+        flex: none;
+        min-height: 400px;
+    }
+
+    .confusion-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(2, 300px);
+    }
+}

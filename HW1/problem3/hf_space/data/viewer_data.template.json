@@ -1,0 +1,49 @@
+{
+  "title": "Hybrid QNN Explorer",
+  "subtitle": "QCAA HW1 Problem 3 — CNN+MLP vs CNN+QNN on CIFAR-10",
+  "status": "template (no runtime data)",
+  "description": "This is a placeholder export. Run the training pipeline to generate real data.",
+  "experiment": {
+    "model": "CNN + PQC hybrid classifier",
+    "task": "CIFAR-10 10-class image classification",
+    "methods": ["mlp", "qnn"],
+    "dataset": "CIFAR-10",
+    "device": "default.qubit + backprop",
+    "note": "Comparing classical MLP head vs quantum circuit head on shared CNN backbone."
+  },
+  "methods": {
+    "mlp": {
+      "label": "CNN + MLP (Baseline)",
+      "num_params": null,
+      "train_time_s": null,
+      "best_test_acc": null,
+      "history": []
+    },
+    "qnn": {
+      "label": "CNN + QNN (Hybrid)",
+      "num_params": null,
+      "train_time_s": null,
+      "best_test_acc": null,
+      "history": []
+    }
+  },
+  "timeline_steps": [],
+  "summary": {
+    "mlp": {
+      "label": "CNN + MLP (Baseline)",
+      "num_params": null,
+      "train_time_s": null,
+      "best_test_acc": null
+    },
+    "qnn": {
+      "label": "CNN + QNN (Hybrid)",
+      "num_params": null,
+      "train_time_s": null,
+      "best_test_acc": null
+    }
+  },
+  "run": {
+    "name": "demo",
+    "path": "./data/viewer_data.template.json"
+  }
+}

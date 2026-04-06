@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hybrid QNN Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/overlays.css" />
+  <link rel="stylesheet" href="css/charts.css" />
+</head>
+
+<body>
+  <div class="page-shell">
+
+    <!-- ── left rail ──────────────────────────────────────────────────── -->
+    <aside class="control-rail">
+
+      <div class="hero-card">
+        <p class="eyebrow">D11224001 Huang, Chun-Ming</p>
+        <div class="hero-title-row">
+          <h1 id="page-title">Hybrid QNN Explorer</h1>
+          <div class="hero-info-wrap">
+            <button id="analysis-open" class="hero-info-button" type="button"
+              aria-label="Open analysis notes" title="Open analysis notes">i</button>
+            <button id="answers-open" class="hero-info-button hero-info-button-secondary"
+              type="button" aria-label="Open assignment answers" title="Open assignment answers">?</button>
+          </div>
+        </div>
+        <p id="page-subtitle" class="muted">HW1 Problem 3 results are loading…</p>
+      </div>
+
+      <!-- summary comparison table -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <h2>Comparison</h2>
+          <span id="export-status" class="status-pill">loading</span>
+        </div>
+        <div id="loading-panel" class="loading-panel" hidden>
+          <div class="loading-meta">
+            <strong id="loading-label">Preparing viewer…</strong>
+            <span id="loading-percent">0%</span>
+          </div>
+          <div class="loading-track" aria-hidden="true">
+            <div id="loading-bar" class="loading-bar"></div>
+          </div>
+        </div>
+        <label class="slider-label hidden-control" for="run-select">Run</label>
+        <select id="run-select" class="run-select hidden-control"></select>
+        <div class="results-table-wrap">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Test Acc</th>
+                <th>Params</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="results-table-body"></tbody>
+          </table>
+        </div>
+        <p id="run-note" class="muted">
+          Choose a runtime export to compare different configurations.
+        </p>
+      </div>
+
+      <!-- experiment meta -->
+      <div class="panel-card experiment-card">
+        <div class="panel-header">
+          <h2>Experiment</h2>
+        </div>
+        <div class="experiment-scroll">
+          <dl id="experiment-meta" class="meta-list"></dl>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── main pane ──────────────────────────────────────────────────── -->
+    <main class="content-pane">
+
+      <!-- training curves -->
+      <section class="canvas-card">
+        <div class="section-heading">
+          <div>
+            <div class="timeline-title-row">
+              <h2>Training Curves</h2>
+              <span id="current-step-label" class="timeline-title-pill">—</span>
+              <div class="timeline-slider-inline">
+                <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
+              </div>
+              <div id="timeline-metrics" class="timeline-metrics-row">
+                <span id="mlp-acc-pill" class="timeline-title-pill timeline-metric-pill" hidden>
+                  MLP —
+                </span>
+                <span id="qnn-acc-pill"
+                  class="timeline-title-pill timeline-metric-pill timeline-metric-pill-test" hidden>
+                  QNN —
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <div id="loss-chart" class="plot-surface plot-surface-wide"></div>
+          <div id="chart-empty" class="chart-empty">
+            No training data exported yet.
+          </div>
+        </div>
+      </section>
+
+      <!-- confusion matrices -->
+      <section class="canvas-card">
+        <div class="section-heading">
+          <div>
+            <h2>Confusion Matrices</h2>
+          </div>
+        </div>
+        <div class="confusion-grid">
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-mlp">MLP</span>
+              CNN + MLP Baseline
+            </div>
+            <div id="cm-mlp" class="confusion-plot"></div>
+          </article>
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-qnn">QNN</span>
+              CNN + QNN Hybrid
+            </div>
+            <div id="cm-qnn" class="confusion-plot"></div>
+          </article>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- image lightbox -->
+  <div id="image-lightbox" class="image-lightbox" hidden aria-hidden="true">
+    <div class="image-lightbox-backdrop" data-lightbox-close="true"></div>
+    <div class="image-lightbox-dialog" role="dialog" aria-modal="true" aria-label="Image preview">
+      <button id="image-lightbox-close" class="image-lightbox-close" type="button"
+        aria-label="Close image preview">×</button>
+      <img id="image-lightbox-image" class="image-lightbox-image" alt="Preview" />
+      <p id="image-lightbox-caption" class="image-lightbox-caption"></p>
+    </div>
+  </div>
+
+  <!-- analysis modal -->
+  <div id="analysis-modal" class="analysis-modal" hidden aria-hidden="true">
+    <div class="analysis-modal-backdrop" data-analysis-close="true"></div>
+    <div class="analysis-modal-dialog" role="dialog" aria-modal="true"
+      aria-label="Problem 3 analysis">
+      <button id="analysis-close" class="analysis-modal-close" type="button"
+        aria-label="Close analysis">×</button>
+      <div class="analysis-modal-content">
+        <div id="analysis-modal-label" class="analysis-modal-label">Analysis notes</div>
+        <div id="analysis-markdown" class="analysis-markdown">
+          Loading analysis notes…
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js" type="module"></script>
+</body>
+
+</html>
