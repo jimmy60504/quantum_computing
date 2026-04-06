@@ -99,7 +99,7 @@ async function ensureMarkdownDocument(sourcePath) {
     }
 
     try {
-        const response = await fetch(sourcePath);
+        const response = await fetch(sourcePath, { cache: "no-store" });
         if (!response.ok) {
             throw new Error(`Failed to load markdown document: ${sourcePath}`);
         }
