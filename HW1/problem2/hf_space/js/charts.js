@@ -104,13 +104,13 @@ export function renderAccuracyChart(steps, current) {
     const lossChart = document.getElementById("loss-chart");
     if (!lossChart || !steps?.length) return;
 
-    const epochs      = steps.map((s) => s.epoch ?? s.global_step ?? 0);
+    const epochs      = steps.map((s) => s.global_step ?? s.epoch ?? 0);
     const trainAcc    = steps.map((s) => s.train_acc  ?? null);
     const testAcc     = steps.map((s) => s.test_acc   ?? null);
     const trainLoss   = steps.map((s) => s.train_loss ?? null);
     const testLoss    = steps.map((s) => s.test_loss  ?? null);
 
-    const curEpoch = steps[current]?.epoch ?? steps[current]?.global_step ?? null;
+    const curEpoch = steps[current]?.global_step ?? steps[current]?.epoch ?? null;
 
     const shapes = curEpoch !== null ? [{
         type: "line", xref: "x", yref: "paper",
@@ -129,7 +129,7 @@ export function renderAccuracyChart(steps, current) {
         margin: { t: 8, b: 36, l: 42, r: 16 },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor:  "rgba(0,0,0,0)",
-        xaxis: { title: "Epoch", gridcolor: "rgba(23,33,29,0.08)", zeroline: false },
+        xaxis: { title: "Step", gridcolor: "rgba(23,33,29,0.08)", zeroline: false },
         yaxis: { gridcolor: "rgba(23,33,29,0.08)", zeroline: false },
         legend: { orientation: "h", y: -0.22, font: { size: 11 } },
         shapes,

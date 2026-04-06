@@ -106,6 +106,22 @@ class ExplicitQuantumClassifier(nn.Module):
 
         return {"loss": last_loss, "train_acc": last_acc}
 
+    def train_step(self, X_batch: np.ndarray, y_batch: np.ndarray) -> dict[str, float]:
+        """One gradient step on a pre-batched array. Returns {loss, train_acc}."""
+        features = torch.as_tensor(X_batch, dtype=torch.float32)
+        labels = torch.as_tensor(y_batch, dtype=torch.float32)
+        self.train()
+        self.optimizer.zero_grad()
+        probabilities = self.forward(features)
+        labels = labels.to(probabilities.dtype)
+        loss = self.loss_fn(probabilities, labels)
+        loss.backward()
+        self.optimizer.step()
+        acc = float(
+            ((probabilities >= 0.5).to(torch.int64) == labels.to(torch.int64)).float().mean().item()
+        )
+        return {"loss": float(loss.item()), "train_acc": acc}
+
     def predict(self, X: np.ndarray) -> np.ndarray:
         probabilities = self.decision_function(X)
         return (probabilities >= 0.5).astype(np.int64)

@@ -10,6 +10,7 @@ from time import perf_counter
 import mlflow
 import numpy as np
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 from tqdm.auto import tqdm
 
 try:
@@ -510,10 +511,11 @@ def train_method_stage(method_name: str, config: Prob2Config, run_dir: Path) -> 
         "datasets": {ds: {"snapshots": []} for ds in DATASET_ORDER},
     }
 
-    def _snap(ds_name: str, epoch: int) -> dict[str, object]:
+    def _snap(ds_name: str, global_step: int, epoch: int, batch: int) -> dict[str, object]:
         m = _collect_metrics(models[ds_name], datasets[ds_name])
         b = _build_boundary_payload(models[ds_name], datasets[ds_name], config.boundary_grid_size)
-        return {"epoch": epoch, **m, "boundary": b}
+        label = "Initial" if global_step == 0 else f"E{epoch}·B{batch}"
+        return {"global_step": global_step, "epoch": epoch, "batch": batch, "label": label, **m, "boundary": b}
 
     timings: dict[str, float] = {ds: 0.0 for ds in DATASET_ORDER}
 
@@ -546,56 +548,79 @@ def train_method_stage(method_name: str, config: Prob2Config, run_dir: Path) -> 
 
             _stage("Computing kernel boundaries")
             for ds_name in tqdm(DATASET_ORDER, desc="kernel boundaries", leave=False, dynamic_ncols=True):
-                snap = _snap(ds_name, 0)
+                snap = _snap(ds_name, global_step=0, epoch=0, batch=0)
                 artifact["datasets"][ds_name]["snapshots"].append(snap)
                 mlflow.log_metric(f"{ds_name}/train_acc", snap["train_acc"], step=0)
                 mlflow.log_metric(f"{ds_name}/test_acc", snap["test_acc"], step=0)
                 mlflow.log_metric(f"{ds_name}/train_loss", snap["train_loss"], step=0)
                 mlflow.log_metric(f"{ds_name}/test_loss", snap["test_loss"], step=0)
         else:
-            _stage(f"Computing initial (epoch 0) snapshot for {method_name}")
-            for ds_name in DATASET_ORDER:
-                artifact["datasets"][ds_name]["snapshots"].append(_snap(ds_name, 0))
+            # ── Per-batch training loop ────────────────────────────────────────
+            # Build DataLoaders once so shuffle is per-epoch, not per-batch.
+            loaders = {
+                ds: DataLoader(
+                    TensorDataset(
+                        torch.as_tensor(datasets[ds].X_train, dtype=torch.float32),
+                        torch.as_tensor(datasets[ds].y_train, dtype=torch.float32),
+                    ),
+                    batch_size=config.batch_size,
+                    shuffle=True,
+                    drop_last=False,
+                )
+                for ds in DATASET_ORDER
+            }
+            n_batches = max(len(loader) for loader in loaders.values())
+            total_steps = config.epochs * n_batches
 
-            _stage(f"Training {method_name}")
-            epoch_progress = tqdm(
-                range(1, config.epochs + 1),
-                total=config.epochs,
-                desc=f"training {method_name}",
-                dynamic_ncols=True,
-            )
+            _stage(f"Computing initial snapshot for {method_name}")
+            for ds_name in DATASET_ORDER:
+                artifact["datasets"][ds_name]["snapshots"].append(_snap(ds_name, 0, 0, 0))
+
+            _stage(f"Training {method_name}  ({config.epochs} epochs × {n_batches} batches = {total_steps} steps)")
             best_test_acc = max(
                 artifact["datasets"][ds]["snapshots"][0]["test_acc"] for ds in DATASET_ORDER
             )
-            for epoch in epoch_progress:
-                for ds_name in DATASET_ORDER:
-                    epoch_progress.set_postfix_str(f"dataset={ds_name}")
-                    start = perf_counter()
-                    models[ds_name].fit(
-                        datasets[ds_name].X_train,
-                        datasets[ds_name].y_train,
-                        epochs=1,
-                        batch_size=config.batch_size,
-                        shuffle=True,
-                    )
-                    timings[ds_name] += perf_counter() - start
+            global_step = 0
 
-                if epoch % config.viewer_export_every == 0 or epoch == config.epochs:
+            epoch_bar = tqdm(
+                range(1, config.epochs + 1),
+                total=config.epochs,
+                desc=f"{method_name}",
+                dynamic_ncols=True,
+            )
+            for epoch in epoch_bar:
+                epoch_iters = {ds: iter(loaders[ds]) for ds in DATASET_ORDER}
+
+                for batch_idx in range(n_batches):
+                    global_step += 1
+                    is_last_step = (epoch == config.epochs and batch_idx == n_batches - 1)
+
                     for ds_name in DATASET_ORDER:
-                        snap = _snap(ds_name, epoch)
-                        artifact["datasets"][ds_name]["snapshots"].append(snap)
-                        mlflow.log_metric(f"{ds_name}/train_acc", snap["train_acc"], step=epoch)
-                        mlflow.log_metric(f"{ds_name}/test_acc", snap["test_acc"], step=epoch)
-                        mlflow.log_metric(f"{ds_name}/train_loss", snap["train_loss"], step=epoch)
-                        mlflow.log_metric(f"{ds_name}/test_loss", snap["test_loss"], step=epoch)
-                        best_test_acc = max(best_test_acc, snap["test_acc"])
+                        try:
+                            X_batch, y_batch = next(epoch_iters[ds_name])
+                        except StopIteration:
+                            continue
+                        start = perf_counter()
+                        models[ds_name].train_step(X_batch.numpy(), y_batch.numpy())
+                        timings[ds_name] += perf_counter() - start
+
+                    # Export a snapshot every viewer_export_every steps and at the very end
+                    if global_step % config.viewer_export_every == 0 or is_last_step:
+                        for ds_name in DATASET_ORDER:
+                            snap = _snap(ds_name, global_step, epoch, batch_idx + 1)
+                            artifact["datasets"][ds_name]["snapshots"].append(snap)
+                            mlflow.log_metric(f"{ds_name}/train_acc", snap["train_acc"], step=global_step)
+                            mlflow.log_metric(f"{ds_name}/test_acc", snap["test_acc"], step=global_step)
+                            mlflow.log_metric(f"{ds_name}/train_loss", snap["train_loss"], step=global_step)
+                            mlflow.log_metric(f"{ds_name}/test_loss", snap["test_loss"], step=global_step)
+                            best_test_acc = max(best_test_acc, snap["test_acc"])
 
                 avg_test_acc = float(
                     np.mean([artifact["datasets"][ds]["snapshots"][-1]["test_acc"] for ds in DATASET_ORDER])
                 )
-                epoch_progress.set_postfix(avg_test_acc=f"{avg_test_acc:.3f}", best=f"{best_test_acc:.3f}")
+                epoch_bar.set_postfix(step=global_step, avg_acc=f"{avg_test_acc:.3f}", best=f"{best_test_acc:.3f}")
 
-            epoch_progress.close()
+            epoch_bar.close()
             mlflow.log_metric("best_test_acc", best_test_acc)
 
         for ds_name in DATASET_ORDER:
@@ -634,29 +659,27 @@ def assemble_viewer_stage(config: Prob2Config, run_dir: Path) -> tuple[Path, Pat
         )
         print(f"  - {method_name}: {n_snaps} snapshots", flush=True)
 
-    _stage("Building viewer timeline (all exported epochs)")
+    _stage("Building viewer timeline (all exported steps)")
 
-    # Collect the epoch indices exported by the trainable methods.  Both
-    # explicit and reuploading produce snapshots at the same epochs so we
-    # use explicit/circle as the reference.  Kernel only has epoch 0 (its
-    # boundary is fixed), which we replicate for every epoch.
+    # Use explicit/circle as the reference timeline — its global_steps drive
+    # the viewer slider.  Kernel has only step 0; its boundary is replicated.
     ref_snaps = artifacts["explicit"]["datasets"]["circle"]["snapshots"]
-    exported_epochs: list[int] = [int(s["epoch"]) for s in ref_snaps]
+    exported_steps: list[int] = [int(s["global_step"]) for s in ref_snaps]
 
-    # Build a quick lookup: method → dataset → epoch → snapshot
+    # Build lookup: method → dataset → global_step → snapshot
     snap_lookup: dict[str, dict[str, dict[int, dict]]] = {}
     for method_name in METHOD_ORDER:
         snap_lookup[method_name] = {}
         for ds_name in DATASET_ORDER:
             snaps = artifacts[method_name]["datasets"][ds_name]["snapshots"]
-            snap_lookup[method_name][ds_name] = {int(s["epoch"]): s for s in snaps}
+            snap_lookup[method_name][ds_name] = {int(s["global_step"]): s for s in snaps}
 
     timeline_steps: list[dict[str, object]] = []
-    for epoch in exported_epochs:
+    for step in exported_steps:
         boundaries: dict[str, dict] = {}
         accuracies: dict[str, dict] = {}
         losses: dict[str, dict] = {}
-        all_snaps_at_epoch: list[dict] = []
+        all_snaps_at_step: list[dict] = []
 
         for method_name in METHOD_ORDER:
             boundaries[method_name] = {}
@@ -664,26 +687,32 @@ def assemble_viewer_stage(config: Prob2Config, run_dir: Path) -> tuple[Path, Pat
             losses[method_name] = {}
             for ds_name in DATASET_ORDER:
                 lookup = snap_lookup[method_name][ds_name]
-                # For kernel (epoch-invariant) fall back to epoch 0
-                snap = lookup.get(epoch) or lookup.get(0) or next(iter(lookup.values()))
+                # Kernel only has step 0; fall back for all other steps
+                snap = lookup.get(step) or lookup.get(0) or next(iter(lookup.values()))
                 boundaries[method_name][ds_name] = snap["boundary"]
                 accuracies[method_name][ds_name] = snap["test_acc"]
                 losses[method_name][ds_name] = {
                     "train": snap["train_loss"],
                     "test": snap["test_loss"],
                 }
-                all_snaps_at_epoch.append(snap)
+                all_snaps_at_step.append(snap)
 
-        label = "Initial" if epoch == 0 else f"Epoch {epoch}"
+        # Recover label / epoch / batch from the reference snapshot
+        ref_snap = snap_lookup["explicit"]["circle"].get(step, {})
+        label = ref_snap.get("label", "Initial" if step == 0 else f"Step {step}")
+        epoch = ref_snap.get("epoch", 0)
+        batch = ref_snap.get("batch", 0)
+
         timeline_steps.append(
             {
                 "label": label,
                 "epoch": epoch,
-                "global_step": epoch,
-                "train_acc": float(np.mean([s["train_acc"] for s in all_snaps_at_epoch])),
-                "test_acc": float(np.mean([s["test_acc"] for s in all_snaps_at_epoch])),
-                "train_loss": float(np.mean([s["train_loss"] for s in all_snaps_at_epoch])),
-                "test_loss": float(np.mean([s["test_loss"] for s in all_snaps_at_epoch])),
+                "batch": batch,
+                "global_step": step,
+                "train_acc": float(np.mean([s["train_acc"] for s in all_snaps_at_step])),
+                "test_acc": float(np.mean([s["test_acc"] for s in all_snaps_at_step])),
+                "train_loss": float(np.mean([s["train_loss"] for s in all_snaps_at_step])),
+                "test_loss": float(np.mean([s["test_loss"] for s in all_snaps_at_step])),
                 "accuracies": accuracies,
                 "losses": losses,
                 "scatter": scatter,
