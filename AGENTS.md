@@ -59,3 +59,12 @@
   `gx10` with `nvcr.io/nvidia/pytorch:26.03-py3`.
 - Keep the Conda workflow as the default local development path unless the user
   asks to containerize local work too.
+
+## Viewing experiment results
+
+- The HW1 Problem 2 QML viewer lives in `HW1/problem2/hf_space/` as a static
+  site. Runtime JSON exports are large and live on `gx10` only.
+- **Do not sync runtime JSON files back to the local machine.** Serve from
+  `gx10` directly and access via SSH tunnel.
+- See `kb/viewer_access.md` for the full procedure (start HTTP server on gx10,
+  open SSH tunnel, open `http://localhost:8787`).
