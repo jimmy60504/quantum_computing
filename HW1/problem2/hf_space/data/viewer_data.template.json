@@ -6,8 +6,15 @@
   "experiment": {
     "model": "PennyLane QML classifiers",
     "task": "Binary classification (circle and moons datasets)",
-    "methods": ["explicit", "kernel", "reuploading"],
-    "datasets": ["circle", "moons"],
+    "methods": [
+      "explicit",
+      "kernel",
+      "reuploading"
+    ],
+    "datasets": [
+      "circle",
+      "moons"
+    ],
     "device": "configurable: default.qubit or lightning.qubit",
     "note": "Run training on gx10 to populate hf_space_hw1_problem2/runtime/viewer_data.json."
   },

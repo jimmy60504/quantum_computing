@@ -9,8 +9,15 @@
       "steps": 0,
       "method": "explicit + kernel + reuploading",
       "dataset": "circle + moons",
-      "methods": ["explicit", "kernel", "reuploading"],
-      "datasets": ["circle", "moons"],
+      "methods": [
+        "explicit",
+        "kernel",
+        "reuploading"
+      ],
+      "datasets": [
+        "circle",
+        "moons"
+      ],
       "num_qubits": 2,
       "num_layers": 4,
       "num_layers_explicit": 4,

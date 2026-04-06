@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from time import perf_counter
@@ -12,9 +13,9 @@ import torch
 from tqdm.auto import tqdm
 
 try:
-    from ..datasets import DatasetBundle, make_circle_dataset, make_moons_dataset
+    from ..datasets import DatasetBundle, load_datasets, make_circle_dataset, make_moons_dataset, save_datasets
 except ImportError:  # pragma: no cover
-    from datasets import DatasetBundle, make_circle_dataset, make_moons_dataset
+    from datasets import DatasetBundle, load_datasets, make_circle_dataset, make_moons_dataset, save_datasets
 
 from .config import Prob2Config, resolve_viewer_export_path, resolve_viewer_manifest_path
 from .models import DataReuploadingClassifier, ExplicitQuantumClassifier, QuantumKernelClassifier
@@ -128,12 +129,51 @@ def _build_models(config: Prob2Config) -> dict[str, dict[str, object]]:
     }
 
 
+def _build_single_method_models(method_name: str, config: Prob2Config) -> dict[str, object]:
+    """Return {dataset_name: model} for a single QML method."""
+    if method_name == "explicit":
+        return {
+            ds: ExplicitQuantumClassifier(
+                num_layers=config.num_layers_explicit,
+                num_qubits=config.num_qubits,
+                learning_rate=config.learning_rate,
+                device_name=config.device_name,
+                diff_method=config.diff_method,
+                seed=config.seed,
+            )
+            for ds in DATASET_ORDER
+        }
+    if method_name == "kernel":
+        return {
+            ds: QuantumKernelClassifier(
+                num_qubits=config.num_qubits,
+                device_name=config.device_name,
+                seed=config.seed,
+            )
+            for ds in DATASET_ORDER
+        }
+    if method_name == "reuploading":
+        return {
+            ds: DataReuploadingClassifier(
+                num_layers=config.num_layers_reuploading,
+                num_qubits=config.num_qubits,
+                learning_rate=config.learning_rate,
+                device_name=config.device_name,
+                diff_method=config.diff_method,
+                seed=config.seed,
+            )
+            for ds in DATASET_ORDER
+        }
+    raise ValueError(f"Unknown method: {method_name}")
+
+
 def _build_timeline_step(
     epoch: int,
     metrics: dict[tuple[str, str], dict[str, float]],
     models: dict[str, dict[str, object]],
     datasets: dict[str, DatasetBundle],
     config: Prob2Config,
+    kernel_boundaries: dict[str, dict[str, object]] | None = None,
 ) -> dict[str, object]:
     top_train_acc = float(np.mean([entry["train_acc"] for entry in metrics.values()]))
     top_test_acc = float(np.mean([entry["test_acc"] for entry in metrics.values()]))
@@ -142,7 +182,11 @@ def _build_timeline_step(
 
     boundaries = {
         method_name: {
-            dataset_name: _build_boundary_payload(models[method_name][dataset_name], datasets[dataset_name], config.boundary_grid_size)
+            dataset_name: (
+                kernel_boundaries[dataset_name]
+                if method_name == "kernel" and kernel_boundaries is not None
+                else _build_boundary_payload(models[method_name][dataset_name], datasets[dataset_name], config.boundary_grid_size)
+            )
             for dataset_name in DATASET_ORDER
         }
         for method_name in METHOD_ORDER
@@ -281,6 +325,15 @@ def train(config: Prob2Config) -> tuple[Path, Path]:
                 flush=True,
             )
 
+        _stage("Computing kernel decision boundaries (cached for all export steps)")
+        kernel_boundaries: dict[str, dict[str, object]] = {}
+        for dataset_name in tqdm(DATASET_ORDER, desc="kernel boundaries", leave=False, dynamic_ncols=True):
+            kernel_boundaries[dataset_name] = _build_boundary_payload(
+                models["kernel"][dataset_name],
+                datasets[dataset_name],
+                config.boundary_grid_size,
+            )
+
         _stage("Evaluating initial metrics")
         metrics = {
             (method_name, dataset_name): _collect_metrics(models[method_name][dataset_name], datasets[dataset_name])
@@ -289,7 +342,7 @@ def train(config: Prob2Config) -> tuple[Path, Path]:
         }
         _log_metrics_to_mlflow(metrics, step=0)
 
-        initial_step = _build_timeline_step(0, metrics, models, datasets, config)
+        initial_step = _build_timeline_step(0, metrics, models, datasets, config, kernel_boundaries=kernel_boundaries)
         timeline_steps.append(initial_step)
         best_test_acc = max(values["test_acc"] for values in metrics.values())
 
@@ -331,7 +384,7 @@ def train(config: Prob2Config) -> tuple[Path, Path]:
 
             if epoch % config.viewer_export_every == 0 or epoch == config.epochs:
                 _stage(f"Exporting viewer snapshot for epoch {epoch}")
-                step_payload = _build_timeline_step(epoch, metrics, models, datasets, config)
+                step_payload = _build_timeline_step(epoch, metrics, models, datasets, config, kernel_boundaries=kernel_boundaries)
                 timeline_steps.append(step_payload)
 
                 summary = {
@@ -379,4 +432,259 @@ def train(config: Prob2Config) -> tuple[Path, Path]:
         if viewer_manifest_path.exists():
             mlflow.log_artifact(str(viewer_manifest_path), artifact_path="viewer")
 
+    return viewer_export_path, viewer_manifest_path
+
+
+# ---------------------------------------------------------------------------
+# Staged execution helpers
+# ---------------------------------------------------------------------------
+
+
+def prepare_datasets_stage(config: Prob2Config, run_dir: Path) -> Path:
+    """Generate datasets with fixed seed and save to *run_dir*/datasets.npz."""
+    run_dir = Path(run_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    np.random.seed(config.seed)
+
+    _stage("Preparing datasets")
+    datasets = _load_datasets(config)
+    for name, bundle in datasets.items():
+        print(
+            f"  - {name}: train={bundle.X_train.shape[0]} test={bundle.X_test.shape[0]} "
+            f"features={bundle.X_train.shape[1]}",
+            flush=True,
+        )
+
+    out_path = run_dir / "datasets.npz"
+    save_datasets(datasets, out_path)
+    print(f"Saved datasets → {out_path}", flush=True)
+    return out_path
+
+
+def train_method_stage(method_name: str, config: Prob2Config, run_dir: Path) -> Path:
+    """Train a single QML method, then save a JSON artifact to *run_dir*/{method}_artifact.json.
+
+    The artifact contains epoch-level snapshots (metrics + decision boundary) for each
+    dataset, which ``assemble_viewer_stage`` later merges into the viewer JSON.
+    """
+    run_dir = Path(run_dir)
+    datasets_path = run_dir / "datasets.npz"
+    if not datasets_path.exists():
+        raise FileNotFoundError(f"datasets.npz not found in {run_dir}. Run 'prepare' first.")
+
+    _stage(f"Loading datasets from {datasets_path}")
+    datasets = load_datasets(datasets_path)
+    for name, bundle in datasets.items():
+        print(
+            f"  - {name}: train={bundle.X_train.shape[0]} test={bundle.X_test.shape[0]}",
+            flush=True,
+        )
+
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
+
+    _stage(f"Building {method_name} models")
+    models = _build_single_method_models(method_name, config)
+
+    tracking_uri = (
+        config.tracking_uri
+        or os.environ.get("MLFLOW_TRACKING_URI")
+        or f"sqlite:///{(Path.cwd() / 'mlflow.db').resolve()}"
+    )
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(config.experiment_name)
+
+    run_display_name = f"{config.run_name}-{method_name}" if config.run_name else method_name
+    artifact: dict[str, object] = {
+        "method": method_name,
+        "config": {
+            "epochs": config.epochs,
+            "learning_rate": config.learning_rate,
+            "batch_size": config.batch_size,
+            "num_qubits": config.num_qubits,
+            "num_layers_explicit": config.num_layers_explicit,
+            "num_layers_reuploading": config.num_layers_reuploading,
+            "boundary_grid_size": config.boundary_grid_size,
+            "seed": config.seed,
+        },
+        "datasets": {ds: {"snapshots": []} for ds in DATASET_ORDER},
+    }
+
+    def _snap(ds_name: str, epoch: int) -> dict[str, object]:
+        m = _collect_metrics(models[ds_name], datasets[ds_name])
+        b = _build_boundary_payload(models[ds_name], datasets[ds_name], config.boundary_grid_size)
+        return {"epoch": epoch, **m, "boundary": b}
+
+    timings: dict[str, float] = {ds: 0.0 for ds in DATASET_ORDER}
+
+    with mlflow.start_run(run_name=run_display_name):
+        mlflow.log_params(
+            {
+                "method": method_name,
+                "seed": config.seed,
+                "epochs": config.epochs if method_name != "kernel" else 0,
+                "learning_rate": config.learning_rate,
+                "batch_size": config.batch_size,
+                "num_qubits": config.num_qubits,
+                "num_layers_explicit": config.num_layers_explicit,
+                "num_layers_reuploading": config.num_layers_reuploading,
+                "boundary_grid_size": config.boundary_grid_size,
+            }
+        )
+
+        if method_name == "kernel":
+            _stage("Fitting quantum kernel")
+            for ds_name in tqdm(DATASET_ORDER, desc="kernel fit", leave=False, dynamic_ncols=True):
+                start = perf_counter()
+                fit_result = models[ds_name].fit(datasets[ds_name].X_train, datasets[ds_name].y_train)
+                timings[ds_name] = perf_counter() - start
+                print(
+                    f"  - {ds_name}: train_acc={fit_result['train_acc']:.3f} "
+                    f"evals={models[ds_name].count_model_complexity()}",
+                    flush=True,
+                )
+
+            _stage("Computing kernel boundaries")
+            for ds_name in tqdm(DATASET_ORDER, desc="kernel boundaries", leave=False, dynamic_ncols=True):
+                snap = _snap(ds_name, 0)
+                artifact["datasets"][ds_name]["snapshots"].append(snap)
+                mlflow.log_metric(f"{ds_name}/train_acc", snap["train_acc"], step=0)
+                mlflow.log_metric(f"{ds_name}/test_acc", snap["test_acc"], step=0)
+                mlflow.log_metric(f"{ds_name}/train_loss", snap["train_loss"], step=0)
+                mlflow.log_metric(f"{ds_name}/test_loss", snap["test_loss"], step=0)
+        else:
+            _stage(f"Computing initial (epoch 0) snapshot for {method_name}")
+            for ds_name in DATASET_ORDER:
+                artifact["datasets"][ds_name]["snapshots"].append(_snap(ds_name, 0))
+
+            _stage(f"Training {method_name}")
+            epoch_progress = tqdm(
+                range(1, config.epochs + 1),
+                total=config.epochs,
+                desc=f"training {method_name}",
+                dynamic_ncols=True,
+            )
+            best_test_acc = max(
+                artifact["datasets"][ds]["snapshots"][0]["test_acc"] for ds in DATASET_ORDER
+            )
+            for epoch in epoch_progress:
+                for ds_name in DATASET_ORDER:
+                    epoch_progress.set_postfix_str(f"dataset={ds_name}")
+                    start = perf_counter()
+                    models[ds_name].fit(
+                        datasets[ds_name].X_train,
+                        datasets[ds_name].y_train,
+                        epochs=1,
+                        batch_size=config.batch_size,
+                        shuffle=True,
+                    )
+                    timings[ds_name] += perf_counter() - start
+
+                if epoch % config.viewer_export_every == 0 or epoch == config.epochs:
+                    for ds_name in DATASET_ORDER:
+                        snap = _snap(ds_name, epoch)
+                        artifact["datasets"][ds_name]["snapshots"].append(snap)
+                        mlflow.log_metric(f"{ds_name}/train_acc", snap["train_acc"], step=epoch)
+                        mlflow.log_metric(f"{ds_name}/test_acc", snap["test_acc"], step=epoch)
+                        mlflow.log_metric(f"{ds_name}/train_loss", snap["train_loss"], step=epoch)
+                        mlflow.log_metric(f"{ds_name}/test_loss", snap["test_loss"], step=epoch)
+                        best_test_acc = max(best_test_acc, snap["test_acc"])
+
+                avg_test_acc = float(
+                    np.mean([artifact["datasets"][ds]["snapshots"][-1]["test_acc"] for ds in DATASET_ORDER])
+                )
+                epoch_progress.set_postfix(avg_test_acc=f"{avg_test_acc:.3f}", best=f"{best_test_acc:.3f}")
+
+            epoch_progress.close()
+            mlflow.log_metric("best_test_acc", best_test_acc)
+
+        for ds_name in DATASET_ORDER:
+            mlflow.log_metric(f"{ds_name}/training_time_seconds", timings[ds_name])
+
+    artifact_path = run_dir / f"{method_name}_artifact.json"
+    with open(artifact_path, "w") as fh:
+        json.dump(artifact, fh)
+    print(f"Saved artifact → {artifact_path}", flush=True)
+    return artifact_path
+
+
+def assemble_viewer_stage(config: Prob2Config, run_dir: Path) -> tuple[Path, Path]:
+    """Read all three method artifacts from *run_dir* and write the viewer JSON.
+
+    Produces a 2-step timeline: initial state (epoch 0) and final state (last recorded epoch).
+    """
+    run_dir = Path(run_dir)
+
+    _stage(f"Loading datasets from {run_dir / 'datasets.npz'}")
+    datasets = load_datasets(run_dir / "datasets.npz")
+    scatter = {name: _serialize_scatter_points(bundle) for name, bundle in datasets.items()}
+
+    _stage("Loading method artifacts")
+    artifacts: dict[str, dict] = {}
+    for method_name in METHOD_ORDER:
+        art_path = run_dir / f"{method_name}_artifact.json"
+        if not art_path.exists():
+            raise FileNotFoundError(
+                f"Missing artifact: {art_path}. Run 'train --method {method_name}' first."
+            )
+        with open(art_path) as fh:
+            artifacts[method_name] = json.load(fh)
+        n_snaps = sum(
+            len(artifacts[method_name]["datasets"][ds]["snapshots"]) for ds in DATASET_ORDER
+        )
+        print(f"  - {method_name}: {n_snaps} snapshots", flush=True)
+
+    _stage("Building viewer timeline (initial + final)")
+    timeline_steps: list[dict[str, object]] = []
+    for label, snap_idx in [("Initial", 0), ("Final", -1)]:
+        boundaries: dict[str, dict] = {m: {} for m in METHOD_ORDER}
+        accuracies: dict[str, dict] = {m: {} for m in METHOD_ORDER}
+        losses: dict[str, dict] = {m: {} for m in METHOD_ORDER}
+        all_snaps: list[dict] = []
+        max_epoch = 0
+
+        for method_name in METHOD_ORDER:
+            for ds_name in DATASET_ORDER:
+                snaps = artifacts[method_name]["datasets"][ds_name]["snapshots"]
+                snap = snaps[snap_idx]
+                boundaries[method_name][ds_name] = snap["boundary"]
+                accuracies[method_name][ds_name] = snap["test_acc"]
+                losses[method_name][ds_name] = {
+                    "train": snap["train_loss"],
+                    "test": snap["test_loss"],
+                }
+                all_snaps.append(snap)
+                if snap_idx == -1:
+                    max_epoch = max(max_epoch, snap["epoch"])
+
+        epoch = max_epoch if snap_idx == -1 else 0
+        timeline_steps.append(
+            {
+                "label": label,
+                "epoch": epoch,
+                "global_step": epoch,
+                "train_acc": float(np.mean([s["train_acc"] for s in all_snaps])),
+                "test_acc": float(np.mean([s["test_acc"] for s in all_snaps])),
+                "train_loss": float(np.mean([s["train_loss"] for s in all_snaps])),
+                "test_loss": float(np.mean([s["test_loss"] for s in all_snaps])),
+                "accuracies": accuracies,
+                "losses": losses,
+                "scatter": scatter,
+                "boundaries": boundaries,
+            }
+        )
+
+    best_test_acc = max(
+        snap["test_acc"]
+        for method_name in METHOD_ORDER
+        for ds_name in DATASET_ORDER
+        for snap in artifacts[method_name]["datasets"][ds_name]["snapshots"]
+    )
+
+    viewer_export_path = resolve_viewer_export_path(config)
+    viewer_manifest_path = resolve_viewer_manifest_path(config)
+    write_viewer_export(config, viewer_export_path, timeline_steps, scatter, {"best_test_acc": best_test_acc})
+    update_viewer_manifest(viewer_manifest_path, viewer_export_path, config, best_test_acc, timeline_steps)
+
+    print(f"Viewer written → {viewer_export_path}", flush=True)
     return viewer_export_path, viewer_manifest_path

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from sklearn.datasets import make_moons
@@ -95,3 +96,51 @@ def make_moons_dataset(
     )
     bundle.name = "moons"
     return bundle
+
+
+def save_datasets(bundles: dict[str, DatasetBundle], path: str | Path) -> None:
+    """Persist a dict of DatasetBundle objects to a .npz file."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    arrays: dict[str, np.ndarray] = {}
+    for name, bundle in bundles.items():
+        arrays[f"{name}__X_train"] = bundle.X_train
+        arrays[f"{name}__X_test"] = bundle.X_test
+        arrays[f"{name}__y_train"] = bundle.y_train
+        arrays[f"{name}__y_test"] = bundle.y_test
+        arrays[f"{name}__X_all"] = bundle.X_all
+        arrays[f"{name}__y_all"] = bundle.y_all
+        for field in ("X_train_raw", "X_test_raw", "X_all_raw", "scaler_mean", "scaler_scale"):
+            val = getattr(bundle, field, None)
+            if val is not None:
+                arrays[f"{name}__{field}"] = val
+    np.savez(str(path), **arrays)
+
+
+def load_datasets(path: str | Path) -> dict[str, DatasetBundle]:
+    """Load a dict of DatasetBundle objects from a .npz file."""
+    path = Path(path)
+    data = np.load(str(path))
+    files = set(data.files)
+    names = sorted({k.split("__")[0] for k in files if k.endswith("__X_train")})
+    result: dict[str, DatasetBundle] = {}
+    for name in names:
+        def _opt(field: str, _n: str = name) -> np.ndarray | None:
+            key = f"{_n}__{field}"
+            return data[key] if key in files else None
+
+        result[name] = DatasetBundle(
+            name=name,
+            X_train=data[f"{name}__X_train"],
+            X_test=data[f"{name}__X_test"],
+            y_train=data[f"{name}__y_train"],
+            y_test=data[f"{name}__y_test"],
+            X_all=data[f"{name}__X_all"],
+            y_all=data[f"{name}__y_all"],
+            X_train_raw=_opt("X_train_raw"),
+            X_test_raw=_opt("X_test_raw"),
+            X_all_raw=_opt("X_all_raw"),
+            scaler_mean=_opt("scaler_mean"),
+            scaler_scale=_opt("scaler_scale"),
+        )
+    return result

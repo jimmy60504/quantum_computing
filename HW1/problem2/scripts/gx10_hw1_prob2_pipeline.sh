@@ -26,7 +26,7 @@ for config in "${configs[@]}"; do
 
   echo "[prob2] running ${run_name}"
   GX10_DOCKER_NETWORK=gx10-mlflow \
-  ./scripts/gx10_run_py.sh HW1/problem2/train.py \
+  ./scripts/gx10_run_py.sh HW1/problem2/train.py all \
     --epochs "${EPOCHS}" \
     --n-samples "${SAMPLES}" \
     --layers-explicit "${layers_explicit}" \

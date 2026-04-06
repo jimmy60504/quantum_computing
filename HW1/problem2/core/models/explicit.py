@@ -48,7 +48,7 @@ class ExplicitQuantumClassifier(nn.Module):
                 qml.CNOT(wires=[0, 1])
             return qml.expval(qml.PauliZ(0))
 
-        self._circuit = circuit
+        self._circuit = qml.vmap(circuit, in_axes=(0, None))
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
         self.loss_fn = nn.BCELoss()
 
@@ -63,8 +63,7 @@ class ExplicitQuantumClassifier(nn.Module):
 
     def forward(self, X: np.ndarray | torch.Tensor) -> torch.Tensor:
         features = self._as_tensor(X)
-        outputs = [self._circuit(sample, self.weights) for sample in features]
-        expvals = torch.stack(outputs).reshape(-1)
+        expvals = self._circuit(features, self.weights).reshape(-1)
         return torch.clamp((expvals + 1.0) / 2.0, _EPS, 1.0 - _EPS)
 
     def fit(

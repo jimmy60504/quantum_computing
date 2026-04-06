@@ -67,12 +67,11 @@ class QuantumKernelClassifier:
             raise RuntimeError("Call fit() before decision_function().")
 
         features = np.asarray(X, dtype=np.float64)
-        eval_kernel = qml.kernels.kernel_matrix(features, self._X_train, self.kernel)
-        if hasattr(self.model, "predict_proba"):
-            probabilities = self.model.predict_proba(eval_kernel)[:, 1]
-        else:
-            logits = self.model.decision_function(eval_kernel)
-            probabilities = 1.0 / (1.0 + np.exp(-logits))
+        # Evaluate kernel only against support vectors to avoid O(n_train) evals per test point.
+        support_vectors = self._X_train[self.model.support_]
+        eval_kernel = qml.kernels.kernel_matrix(features, support_vectors, self.kernel)
+        decision_values = (eval_kernel @ self.model.dual_coef_.T).ravel() + self.model.intercept_[0]
+        probabilities = 1.0 / (1.0 + np.exp(-decision_values))
         return np.asarray(probabilities, dtype=np.float64)
 
     def count_model_complexity(self) -> int:
