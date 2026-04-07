@@ -92,7 +92,10 @@ run_stage "2/3 qnn" run --run-dir "${RUN_DIR}" --method qnn "${COMMON_ARGS[@]}"
 # ── Stage 3: Assemble viewer JSON ────────────────────────────────────────────
 hr
 echo "[$(ts)] [pipeline] Stage 3/3: Assembling viewer"
-run_stage "3/3 assemble" assemble --run-dir "${RUN_DIR}" "${COMMON_ARGS[@]}"
+run_stage "3/3 assemble" assemble --run-dir "${RUN_DIR}" \
+    --viewer-export-path "${RUNTIME_DIR}" \
+    --run-name "${RUN_NAME}" \
+    --tracking-uri "${TRACKING_URI}"
 
 hr
 echo "[$(ts)] [pipeline] ${RUN_NAME} complete."

@@ -1,4 +1,7 @@
-"""CNN + MLP baseline classifier for CIFAR-10."""
+"""CNN + MLP baseline classifier for CIFAR-10.
+
+Matches the CNN_MLP baseline specified in the homework.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +12,10 @@ from .backbone import SimpleCNNBackbone
 
 
 class CNNMLPClassifier(nn.Module):
-    """CNN backbone → MLP head (2 hidden layers) → 10-class output."""
+    """CNN backbone → single linear head → 10-class output.
+
+    Matches the homework baseline: classifier = nn.Linear(256, 10).
+    """
 
     method_id = "mlp"
     method_label = "CNN + MLP (Baseline)"
@@ -18,20 +24,11 @@ class CNNMLPClassifier(nn.Module):
         self,
         feature_dim: int = 256,
         num_classes: int = 10,
-        hidden_dim: int = 128,
         freeze_backbone: bool = False,
     ) -> None:
         super().__init__()
         self.backbone = SimpleCNNBackbone(feature_dim=feature_dim)
-        self.head = nn.Sequential(
-            nn.Linear(feature_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(hidden_dim, num_classes),
-        )
+        self.head = nn.Linear(feature_dim, num_classes)
         if freeze_backbone:
             for param in self.backbone.parameters():
                 param.requires_grad = False
