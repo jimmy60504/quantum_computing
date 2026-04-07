@@ -67,6 +67,7 @@ rsync -av \
   "${SOURCE_EXPORT_DIR}/docker/"
 
 rsync -av \
+  --exclude 'hf_space/runtime/' \
   "${REPO_ROOT}/HW1/problem1/" \
   "${SOURCE_EXPORT_DIR}/HW1/problem1/"
 
