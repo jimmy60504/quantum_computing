@@ -29,6 +29,9 @@ QUBITS="${PROB3_QUBITS:-8}"
 LAYERS="${PROB3_LAYERS:-4}"
 FEATURE_DIM="${PROB3_FEATURE_DIM:-256}"
 DEVICE="${PROB3_DEVICE:-cpu}"
+Q_DEVICE="${PROB3_Q_DEVICE:-lightning.qubit}"
+Q_DIFF_METHOD="${PROB3_Q_DIFF_METHOD:-adjoint}"
+FREEZE_BACKBONE="${PROB3_FREEZE_BACKBONE:-1}"
 EXPORT_EVERY="${PROB3_EXPORT_EVERY:-1}"
 RUNTIME_DIR="HW1/problem3/hf_space/runtime"
 LOG_DIR="${RUNTIME_DIR}/logs"
@@ -73,11 +76,16 @@ COMMON_ARGS=(
     --num-layers          "${LAYERS}"
     --feature-dim         "${FEATURE_DIM}"
     --device              "${DEVICE}"
+    --q-device            "${Q_DEVICE}"
+    --q-diff-method       "${Q_DIFF_METHOD}"
     --viewer-export-every "${EXPORT_EVERY}"
     --viewer-export-path  "${RUNTIME_DIR}"
     --tracking-uri        "${TRACKING_URI}"
     --run-name            "${RUN_NAME}"
 )
+if [[ "${FREEZE_BACKBONE}" == "1" ]]; then
+    COMMON_ARGS+=(--freeze-backbone)
+fi
 
 # ── Stage 1: Train MLP baseline ──────────────────────────────────────────────
 hr
