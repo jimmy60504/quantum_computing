@@ -1,139 +1,186 @@
 # Problem 1 分析
 
-這個頁面現在不再主打舊的 qubit/layer 大矩陣，而是改成沿著題目本身的結構，從「可以精確做出答案的量子路徑」一步一步往外放鬆。
-
 ## 題目背景
 
-Problem 1 的目標函數是 `f(x1, x2) = sin(exp(x1) + x2)`。資料切法不是一般的隨機插值，而是刻意把 train domain 放在 `[0.0, 0.5] x [0.0, 0.5]`，test domain 放在 `[0.5, 1.0] x [0.5, 1.0]`。換句話說，模型必須先在左下角看一小塊曲面，再把這個結構推到右上角沒有直接看過的區域。
+這題的目標函數是 `f(x1, x2) = sin(exp(x1) + x2)`。這不是普通的回歸，而是一個**外推問題**：訓練集在 `[0, 0.5]²`（左下角），測試集在 `[0.5, 1.0]²`（右上角），兩者沒有重疊。
 
 ![Train/test split overview](./assets/problem1_data_overview.png)
 
-這也是為什麼這一題的重點不是單純把 train loss 壓低，而是看模型能不能保住正確的曲率與相位結構。
+模型必須在左下角學到曲面的結構，然後把這個結構推到從未見過的右上角。單純把 train loss 壓低沒有意義——判斷標準是能不能在 test domain 還原正確的曲率和相位。
 
-## 為什麼要改成結構化主線
+這題有一個非常乾淨的量子解。因為 `sin(a + b) = ⟨Z⟩` 可以由一個 qubit 在同一旋轉軸上連續接收 `a` 和 `b` 再補上 `-π/2` 的相位移來實現，所以：
 
-前一版比較像是從 generic ansatz 出發，用很多 projection、encoding 和電路排列組合去猜。那條路的問題是模型雖然有很多自由度，但很難判斷到底是量子路徑不夠，還是前面的 generic 設計先把題目結構洗掉了。
+```
+q0: ─[RY(exp(x1))]─[RY(x2)]─[RY(-π/2)]─⟨Z₀⟩
+     ↑ 同軸累加角度        ↑ phase offset
+```
 
-後來我們發現這題其實有一個非常乾淨的量子解：
+這條路徑幾乎直接在量子電路裡編碼了 `sin(exp(x1) + x2)`。整個 viewer 的設計都圍繞這個 exact 解，沿著「一步一步放鬆先驗」的方向展開。
 
-- 同一個 qubit 上連續做 `RY(exp(x1))`
-- 再做 `RY(x2)`
-- 最後補一個 `RY(-pi/2)`
-- 量測 `PauliZ`
+---
 
-因為同軸 reupload 會把角度加起來，所以這條路徑幾乎就是直接在量子電路裡實現 `sin(exp(x1) + x2)`。
+## 資料集
 
-## 目前這個頁面裡的幾組結果在看什麼
+- **目標函數**：`f(x1, x2) = sin(exp(x1) + x2)`
+- **訓練域**：`[0.0, 0.5] × [0.0, 0.5]`，均勻取樣
+- **測試域**：`[0.5, 1.0] × [0.5, 1.0]`，均勻取樣
+- **損失函數**：MSE
 
-現在的主線可以分成幾層：
+exp(x1) 的存在讓這題比一般的 sin 回歸難很多——模型要學的不只是 `sin(a + b)` 的加法結構，還要先自己恢復 `exp(x1)` 這個內部表示。這是貫穿整個 viewer 最核心的問題。
 
-1. `quantum_exact`
-2. `phase_learnable`
-3. `scaled_exact`
-4. `same_axis_reupload`
-5. `same_axis_poly`
-6. `same_axis_raw`
-7. `same_axis_twoqubit`
-8. `twoqubit_no_reupload`
-9. `twoqubit_raw_no_reupload`
+---
 
-前三個是從 exact 解一步一步放鬆：
+## 九個模型
 
-- `quantum_exact`：直接用固定結構做答案
-- `phase_learnable`：只把 `-pi/2` 改成可學參數
-- `scaled_exact`：再讓 `exp(x1)` 和 `x2` 前面可以學 scale / bias
+模型從 exact 解出發，一步一步放鬆先驗，分成三個家族。
 
-第四個 `same_axis_reupload` 才是第一個比較像「真正 data reuploading 模型」的版本：
+---
 
-- 還是保留同一個 qubit、同一個 rotation axis
-- 但不再只做單一 block
-- 而是用多個 reupload blocks 去學同一個 backbone
+### Exact 家族（1 qubit，1 layer）
 
-後面幾層則是在回答兩個更尖銳的問題：
+這三個模型使用固定的 `encode_features(x) = [exp(x1), x2]`，即模型已知 `exp(x1)` 是正確的特徵表示。
 
-- 如果把 `exp(x1)` 這個先驗拿掉，模型能不能自己長出來？
-- 如果換成 2 qubits，資料組合是不是可以不用再靠 reupload？
+#### `quantum_exact`
 
-## 這一輪最重要的結論
+最乾淨的 exact 解。全部固定，沒有任何可訓練參數：
 
-這幾組結果可以分成三段來看。
+```
+q0: ─[RY(exp(x1))]─[RY(x2)]─[RY(-π/2)]─⟨Z₀⟩
+```
 
-第一段是 exact family：
+這不是訓練出來的，而是直接把 `sin(a + b) = ⟨Z⟩` 的恆等式硬編碼進去。**final test MSE ≈ 7.34e-15**，幾乎是數值誤差。
 
-- `quantum_exact` final test MSE 約 `7.34e-15`
-- `phase_learnable` final test MSE 約 `5.77e-11`
-- `scaled_exact` final test MSE 約 `2.06e-10`
+#### `phase_learnable`
 
-第二段是 1-qubit same-axis 泛化：
+把 `-π/2` 改成可學習的 phase shift（初始化為 `-π/2`）：
 
-- `same_axis_reupload (q1, l2)` best test MSE 約 `4.91e-03`
-- `same_axis_poly (q1, l2)` best test MSE 約 `2.88e-02`
-- `same_axis_raw (q1, l2)` best test MSE 約 `3.22e-02`
+```
+q0: ─[RY(exp(x1))]─[RY(x2)]─[RY(φ)]─⟨Z₀⟩
+     φ 初始化為 -π/2，可訓練
+```
 
-第三段是 2-qubit 對照：
+**可訓練參數：1**（φ）。這是最小幅度的放鬆：確認只要 encoding 對，稍微擾動 phase 也能快速恢復。**final test MSE ≈ 5.77e-11**。
 
-- `same_axis_twoqubit (q2, l2)` best test MSE 約 `6.95e-02`
-- `twoqubit_no_reupload (q2, l1)` final test MSE 約 `5.91e-15`
-- `twoqubit_raw_no_reupload (q2, l1)` best test MSE 約 `2.03e-01`
+#### `scaled_exact`
 
-這代表三件事。
+在 `phase_learnable` 的基礎上，讓 `exp(x1)` 和 `x2` 的 scale / bias 也可以學：
 
-第一，題目本身不是量子模型做不到。只要保住正確的組合結構，無論是 1-qubit same-axis reupload，還是 2-qubit no-reupload exact construction，都可以非常接近答案。
+```
+q0: ─[RY(s₁·exp(x1)+b₁)]─[RY(s₂·x2+b₂)]─[RY(φ)]─⟨Z₀⟩
+     s₁,b₁,s₂,b₂ 各自初始化為 (1,0)，φ 初始化為 -π/2
+```
 
-第二，`same_axis_reupload` 這條 generalized data-reuploading 主線是對的。它雖然還不能 exact-fit，但學到的已經不是亂的面，而是沿著正確幾何家族往答案靠近。
+**可訓練參數：5**（s₁, b₁, s₂, b₂, φ）。確認在給定正確特徵的前提下，這個小幅自由度不會破壞解。**final test MSE ≈ 2.06e-10**。
 
-第三，真正困難的地方不是「有沒有 entanglement」或「qubit 數夠不夠」，而是模型能不能自己恢復 `exp(x1)` 這個內部表示。這也是為什麼 `same_axis_poly`、`same_axis_raw`、`twoqubit_raw_no_reupload` 都比 feature-aware 的版本弱很多。
+---
 
-## 怎麼看 `same_axis_reupload`
+### Same-axis Reupload 家族（1 qubit，多 layers）
 
-如果只看數字，`same_axis_reupload-q1-l2-e10` 還有明顯誤差：
+這個家族保留「同一 qubit、同一旋轉軸（Y 軸）」的 backbone，但用多個 block 重複 encoding，讓模型自己學習如何組合。每個 block 的 scale、bias 和 phase shift 都是可訓練的。
 
-- final train MSE 約 `6.79e-05`
-- final test MSE 約 `6.42e-03`
+**每個 block 的結構**：
 
-但這組最重要的不是它還差多少，而是它已經學到對的幾何家族。也就是說，現在的誤差比較像校準還沒完全對齊，而不是模型根本沒抓到題目的主結構。
+```
+q0: ─[RY(s₁⁽ˡ⁾·f₁+b₁⁽ˡ⁾)]─[RY(s₂⁽ˡ⁾·f₂+b₂⁽ˡ⁾)]─[RY(φ⁽ˡ⁾)]─ ···
+```
 
-這也是為什麼目前更合理的方向，是沿著 same-axis backbone 做小幅泛化，而不是回到舊的 projection-heavy 架構。
+其中 f₁, f₂ 因版本而異（見下表），`l` 是 block index。
 
-相對地，`same_axis_poly` 和 `same_axis_raw` 的結果也很有用。它們表示只要 backbone 還在，模型就不會完全走偏；但一旦把 `exp(x1)` 這個強先驗拿掉，誤差就會明顯放大。這讓我們更有把握地說：現在最主要的難題，其實是如何讓模型自己長出 `exp(x1)`，而不是如何重新發明一個更亂的 ansatz。
+| 模型 | 輸入特徵 f₁, f₂ | 可訓練參數（L 層）|
+|---|---|---|
+| `same_axis_reupload` | `exp(x1), x2` | 4L（per-block scale, bias, phase） |
+| `same_axis_raw` | `x1, x2` | 4L |
+| `same_axis_poly` | `poly(x1,θ), x2`（3 次多項式係數可學） | 4L + 4L（poly） |
 
-## 怎麼看 2-qubit 結果
+`same_axis_reupload` 保留 `exp(x1)` 先驗，是「真正的 data reuploading 版本」：模型自己決定如何在多個 block 中混合和組合這兩個特徵。`same_axis_raw` 和 `same_axis_poly` 則測試在不提供 `exp(x1)` 的情況下，模型能不能自己近似這個非線性變換。
 
-2-qubit 結果很適合拿來釐清一個常見直覺。
+#### 代表性結果（L=2，10 epochs）
 
-如果已經把 `exp(x1)` 當 feature 提供給模型，那 `twoqubit_no_reupload` 其實根本不需要 repeated reupload。做法是：
+- `same_axis_reupload`：best test MSE ≈ **4.91e-3**
+- `same_axis_poly`：best test MSE ≈ **2.88e-2**
+- `same_axis_raw`：best test MSE ≈ **3.22e-2**
 
-- `q0` encode `exp(x1)`
-- `q1` encode `x2`
-- 再讀 `⟨X0 Z1⟩` 和 `⟨Z0 X1⟩`
+`same_axis_reupload` 的誤差比 `same_axis_raw` 和 `same_axis_poly` 小一個數量級，說明 `exp(x1)` 這個先驗的信息量非常高，靠學習近似它代價很大。
 
-這樣就可以直接用和角公式做出 `sin(exp(x1) + x2)`。所以 2 qubits 並不是只能回到 generic entangling ansatz；如果結構對，它甚至可以完全不靠 reupload。
+---
 
-但 `twoqubit_raw_no_reupload` 也說明了另一面：如果只丟 raw `x1, x2`，再補一個最小 entangling block，模型並不會自動學出 `exp(x1)`。換句話說，entanglement 不是魔法，重點還是內部表示能不能先長對。
+### 2-qubit 家族
 
-## 這個頁面要怎麼看
+用兩個 qubit 測試不同的「變數組合」方式。
 
-最建議的看法是：
+#### `twoqubit_no_reupload`
 
-1. 先看 `quantum_exact`，把它當成結構參考解。
-2. 再看 `phase_learnable` 和 `scaled_exact`，確認小幅放鬆後是不是還能維持這個解。
-3. 接著看 `same_axis_reupload`，觀察真正的 data reuploading 版本離這個參考解還差多少。
-4. 再看 `same_axis_poly` 和 `same_axis_raw`，把焦點放在「拿掉 `exp(x1)` 先驗之後，模型還剩多少能力」。
-5. 最後對照 `twoqubit_no_reupload` 和 `twoqubit_raw_no_reupload`，理解 2-qubit 路線到底是在解「變數組合」還是在解「內部表示」。
-6. 用 slider 拖過訓練過程，特別注意 test domain 曲面的曲率是怎麼長出來的。
+利用和角公式：把 `exp(x1)` 和 `x2` 分別 encode 到兩個 qubit，再量測跨 qubit 的 correlator：
 
-## 頻譜在這裡的角色
+```
+q0: ─[RY(exp(x1))]─⟨X₀Z₁⟩
+q1: ─[RY(x2)]─────⟨Z₀X₁⟩
+```
 
-Fourier spectrum 在這個頁面的用途，不是單純補一張漂亮圖，而是幫忙確認模型是不是抓到了對的主頻結構。
+輸出 = `w₁·⟨X₀Z₁⟩ + w₂·⟨Z₀X₁⟩`（w₁, w₂ 固定為 `[1,0]` 的解析解）
 
-`quantum_exact` 的主頻和 target 幾乎重合，這和它幾乎零誤差是一致的。`same_axis_reupload` 雖然幅度還沒有完全對上，但主頻位置已經沿著正確方向靠近 target。這個訊號和 3D surface 上看到的曲率學習，是互相對應的。
+因為 `⟨X₀Z₁⟩ = sin(exp(x1))·cos(x2)`、`⟨Z₀X₁⟩ = cos(exp(x1))·sin(x2)`，
+兩者相加就是 `sin(exp(x1) + x2)`，完全不需要 reupload。**final test MSE ≈ 5.91e-15**。
 
-## 目前的工作假設
+#### `twoqubit_raw_no_reupload`
 
-到目前為止，最合理的假設是：
+把 `exp(x1)` 先驗拿掉，改用 raw `x1, x2`，加上 entangling block 後量測四個 observable：
 
-- Problem 1 最重要的 inductive bias 是同 qubit、同軸 reupload
-- 一旦把 `exp(x1)` 和 `x2` 拆散，或先丟進過度 generic 的 projection，模型就比較容易偏掉
-- 2-qubit 路線不是不能做，而是只有在內部表示已經對的時候，no-reupload 組合才會很乾淨
-- 真正值得做的泛化，不是丟掉 exact backbone，而是保留它，再一小步一小步增加自由度
-- 目前最核心的開放問題，不是「要不要更多 qubits」，而是「如何讓模型自己近似出 `exp(x1)`，同時不破壞後面和 `x2` 的乾淨組合」
+```
+q0: ─[RY(x1)]─●─[Rot(α₀,β₀,γ₀)]─⟨Z₀⟩, ⟨X₀Z₁⟩
+              │
+q1: ─[RY(x2)]─X─[Rot(α₁,β₁,γ₁)]─⟨Z₁⟩, ⟨Z₀X₁⟩
+```
+
+輸出 = 四個 observable 的可學習線性組合。**best test MSE ≈ 2.03e-1**——遠比 `twoqubit_no_reupload` 差。2 qubits 和 entanglement 並不足以讓模型自動學出 `exp(x1)` 這個非線性變換。
+
+#### `same_axis_twoqubit`
+
+把 same-axis reupload 架構推廣到 2 qubits。每個 block 中，q0 和 q1 各自做 same-axis reupload，然後用 `CNOT(1→0)` 建立 qubit 間的糾纏，最後對 `⟨Z₀⟩` 和 `⟨Z₁⟩` 做可學習線性組合輸出。
+
+---
+
+## 各模型的本質差異
+
+| 模型 | `exp(x1)` 先驗 | Reupload | Qubits | 可訓練參數 |
+|---|---|---|---|---|
+| `quantum_exact` | ✓（固定） | — | 1 | 0 |
+| `phase_learnable` | ✓ | — | 1 | 1 |
+| `scaled_exact` | ✓ | — | 1 | 5 |
+| `same_axis_reupload` (L層) | ✓ | ✓ | 1 | 4L |
+| `same_axis_raw` (L層) | ✗（raw x1） | ✓ | 1 | 4L |
+| `same_axis_poly` (L層) | 近似（3次多項式） | ✓ | 1 | 8L |
+| `twoqubit_no_reupload` | ✓ | ✗ | 2 | 0 |
+| `twoqubit_raw_no_reupload` | ✗ | ✗ | 2 | ~10 |
+| `same_axis_twoqubit` (L層) | ✓ | ✓ | 2 | 10L |
+
+**核心結論：決定模型表現的不是 qubit 數或 entanglement，而是 `exp(x1)` 先驗有沒有保住。** 只要提供正確的特徵表示，無論是 1-qubit reupload 還是 2-qubit no-reupload，都能非常接近 exact 解；反之，拿掉 `exp(x1)` 之後，即使增加模型複雜度，誤差都會顯著上升。
+
+---
+
+## 頻譜的角色
+
+Fourier spectrum 用來確認模型有沒有學到正確的主頻結構。
+
+`quantum_exact` 的頻譜和 target 幾乎完全重合，與近似零誤差一致。`same_axis_reupload` 的主頻位置已經沿著正確方向靠近 target，但幅度還沒完全對齊——這和 3D surface 上看到的「曲率大致對、但還有殘差」是同一件事的兩個角度。
+
+![Circuit structure](./assets/problem1_circuit.png)
+
+---
+
+## 看 viewer 時的注意點
+
+**建議的觀看順序**：
+1. 先看 `quantum_exact`，把它當作結構參考。
+2. 看 `phase_learnable` → `scaled_exact`，確認小幅放鬆後 exact 解是否穩定。
+3. 看 `same_axis_reupload`，觀察 data reuploading 版本學到的曲面離參考解差多少。
+4. 對比 `same_axis_raw` 和 `same_axis_poly`——拿掉 `exp(x1)` 先驗後，誤差如何放大。
+5. 最後看 `twoqubit_no_reupload` vs `twoqubit_raw_no_reupload`：同樣是 2 qubits，有沒有 `exp(x1)` 的差距就是結論的直接呈現。
+
+**3D surface**：slider 拖動可以看訓練過程中 test domain 的曲面是怎麼逐漸成形的。特別注意在沒有 `exp(x1)` 先驗的模型中，曲率能不能在 test domain 的右上角正確彎折。
+
+**Train vs Test 差距**：Train domain 對所有模型都相對容易擬合。真正的考驗是 test domain——如果一個模型 train MSE 很低但 test MSE 高，表示它只是把 train domain 記住了，沒有學到正確的結構。
+
+---
+
+_訓練結果與具體數字請以 runtime export 為準；本頁面的數字來自代表性實驗。_
