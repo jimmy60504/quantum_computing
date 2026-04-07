@@ -3,6 +3,7 @@ psycopg[binary]
 qiskit==2.3.0
 qiskit-machine-learning
 pennylane==0.44.1
+pennylane-lightning[gpu]==0.44.0
 pylatexenc
 tqdm
 matplotlib
