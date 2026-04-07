@@ -43,6 +43,18 @@ export const accPills = [
 
 export const lossChart = document.getElementById("loss-chart");
 
+// Home-camera buttons: index matches DATASETS order (0=circle, 1=moons)
+export const homeButtons = [
+    document.getElementById("home-btn-circle"),
+    document.getElementById("home-btn-moons"),
+];
+
+// Top-down camera buttons
+export const topButtons = [
+    document.getElementById("top-btn-circle"),
+    document.getElementById("top-btn-moons"),
+];
+
 // Image lightbox
 export const imageLightbox        = document.getElementById("image-lightbox");
 export const imageLightboxImage   = document.getElementById("image-lightbox-image");
@@ -71,4 +83,6 @@ export const state = {
     currentRunChunkInflight: {},
     activeDataset: "circle",   // "circle" | "moons"
     markdownCache: {},
+    // Camera state per dataset row (index 0=circle, 1=moons); null = use DEFAULT_CAMERA
+    cameraState: [null, null],
 };

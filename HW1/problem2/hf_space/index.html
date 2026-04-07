@@ -64,12 +64,13 @@
           <table class="results-table">
             <thead>
               <tr>
-                <th>Acc</th>
-                <th>Method</th>
-                <th>Dataset</th>
-                <th>Run</th>
-                <th>Q</th>
-                <th>L</th>
+                <th title="Best test accuracy">Acc</th>
+                <th title="Number of qubits">Q</th>
+                <th title="Explicit encoding layers">LE</th>
+                <th title="Re-uploading layers">LR</th>
+                <th title="Training methods">Method</th>
+                <th title="Datasets used">Dataset</th>
+                <th title="Run name">Run</th>
               </tr>
             </thead>
             <tbody id="results-table-body"></tbody>
@@ -108,7 +109,12 @@
           <div>
             <h2>Decision Boundaries</h2>
           </div>
-          <!-- dataset column headers are implicit in the grid labels -->
+          <div class="boundary-home-row">
+            <button id="home-btn-circle" class="home-btn" type="button" title="Circle: isometric view">⌂ Circle</button>
+            <button id="top-btn-circle"  class="home-btn" type="button" title="Circle: top-down view">⊤ Circle</button>
+            <button id="home-btn-moons"  class="home-btn" type="button" title="Moons: isometric view">⌂ Moons</button>
+            <button id="top-btn-moons"   class="home-btn" type="button" title="Moons: top-down view">⊤ Moons</button>
+          </div>
         </div>
 
         <!--

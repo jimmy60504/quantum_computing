@@ -6,10 +6,12 @@ import {
     experimentMeta, datasetsImage,
     boundaryPlots, accPills,
     lossChart,
+    homeButtons,
+    topButtons,
     state,
 } from "./dom.js";
 import { bindImageLightbox, bindAnalysisModal, maybeShowAnalysisHint } from "./overlays.js";
-import { renderBoundaryPlot, renderAccuracyChart, renderEmptyState } from "./charts.js";
+import { renderBoundarySurface, renderAccuracyChart, renderEmptyState, DEFAULT_CAMERA, MOONS_DEFAULT_CAMERA, TOP_CAMERA, MOONS_TOP_CAMERA } from "./charts.js";
 import {
     formatMetric, formatInteger, appendMetaRow, withCacheBust,
     setLoadingState, loadManifest, loadRunData, loadRunChunk, loadRuntimeSource,
@@ -132,17 +134,14 @@ function renderResultsTable(runs, selectedRunId) {
         row.dataset.runId = run.id;
         if (run.id === selectedRunId) row.classList.add("is-selected");
 
-        const layerText = (run.num_layers_explicit !== undefined || run.num_layers_reuploading !== undefined)
-            ? `E${formatInteger(run.num_layers_explicit)} / R${formatInteger(run.num_layers_reuploading)}`
-            : formatInteger(run.num_layers);
-
         const values = [
             { text: formatAcc(run.best_test_acc ?? run.final_test_acc), className: "metric-cell metric-cell-strong" },
+            { text: formatInteger(run.num_qubits) },
+            { text: formatInteger(run.num_layers_explicit ?? run.num_layers) },
+            { text: formatInteger(run.num_layers_reuploading ?? run.num_layers) },
             { text: (run.methods ?? [run.method]).filter(Boolean).join(", ") || "—" },
             { text: (run.datasets ?? [run.dataset]).filter(Boolean).join(" + ") || "—" },
             { text: run.label || run.id, className: "run-cell" },
-            { text: formatInteger(run.num_qubits) },
-            { text: layerText },
         ];
 
         values.forEach(({ text, className }) => {
@@ -210,16 +209,19 @@ async function refreshStepState(data, index, stepToken) {
     // Scatter lives at top level (fixed) or falls back to per-step copy
     const scatterSource = data.scatter ?? {};
 
-    // Decision boundaries
+    // Decision boundaries (3D surface)
     METHODS.forEach((method, mi) => {
         DATASETS.forEach((dataset, di) => {
             const container = boundaryPlots[mi]?.[di];
             if (!container) return;
             const heatmap = step.boundaries?.[method]?.[dataset] ?? null;
             const points = scatterSource[dataset] ?? step.scatter?.[dataset] ?? null;
-            renderBoundaryPlot(container, heatmap, points, method);
+            renderBoundarySurface(container, heatmap, points, method, state.cameraState[di]);
         });
     });
+
+    // Attach camera-sync listeners once per panel (idempotent)
+    DATASETS.forEach((_, di) => bindCameraSync(di));
 
     if (chartEmpty) chartEmpty.hidden = true;
     if (lossChart) lossChart.style.display = "";
@@ -308,12 +310,48 @@ async function applyRun(runId) {
     }
 }
 
+// ── camera sync ───────────────────────────────────────────────────────────────
+
+/**
+ * Bind plotly_relayout camera-sync for one dataset row.
+ * Safe to call multiple times — skips panels already bound.
+ * @param {number} di  Dataset index (0=circle, 1=moons)
+ */
+function bindCameraSync(di) {
+    const syncTimers = {};
+    METHODS.forEach((_, mi) => {
+        const container = boundaryPlots[mi]?.[di];
+        if (!container || container._cameraBound) return;
+        container._cameraBound = true;
+        container.on("plotly_relayout", (eventData) => {
+            if (container._receivingSync) return;
+            const cam = eventData["scene.camera"];
+            if (!cam) return;
+            state.cameraState[di] = cam;
+            clearTimeout(syncTimers[mi]);
+            syncTimers[mi] = setTimeout(() => {
+                METHODS.forEach((_, otherMi) => {
+                    if (otherMi === mi) return;
+                    const other = boundaryPlots[otherMi]?.[di];
+                    if (!other?._hasPlot) return;
+                    other._receivingSync = true;
+                    Plotly.relayout(other, { "scene.camera": cam });
+                    setTimeout(() => { other._receivingSync = false; }, 300);
+                });
+            }, 150);
+        });
+    });
+}
+
 // ── main ───────────────────────────────────────────────────────────────────────
 
 async function main() {
     bindImageLightbox();
     bindAnalysisModal();
     maybeShowAnalysisHint();
+
+    // Seed per-dataset home cameras before first render
+    state.cameraState[1] = MOONS_DEFAULT_CAMERA;
 
     setLoadingState({ visible: true, label: "Booting viewer", percent: 2, status: "loading" });
     await loadRuntimeSource();
@@ -336,6 +374,30 @@ async function main() {
     await applyRun(defaultRunId);
 
     runSelect.addEventListener("change", async (e) => applyRun(e.target.value));
+
+    // Camera preset buttons
+    const applyPresetCamera = (di, camera) => {
+        state.cameraState[di] = camera;
+        METHODS.forEach((_, mi) => {
+            const container = boundaryPlots[mi]?.[di];
+            if (!container?._hasPlot) return;
+            container._receivingSync = true;
+            Plotly.relayout(container, { "scene.camera": camera, "scene.dragmode": "turntable" });
+            setTimeout(() => { container._receivingSync = false; }, 300);
+        });
+    };
+
+    const homecameras = [DEFAULT_CAMERA, MOONS_DEFAULT_CAMERA];
+    homeButtons.forEach((btn, di) => {
+        if (!btn) return;
+        btn.addEventListener("click", () => applyPresetCamera(di, homecameras[di]));
+    });
+
+    const topcameras = [TOP_CAMERA, MOONS_TOP_CAMERA];
+    topButtons.forEach((btn, di) => {
+        if (!btn) return;
+        btn.addEventListener("click", () => applyPresetCamera(di, topcameras[di]));
+    });
 
     stepSlider.addEventListener("input", async (e) => {
         if (state.currentData) {

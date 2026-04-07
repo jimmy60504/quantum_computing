@@ -1,7 +1,7 @@
 const METHOD_COLORS = {
-    explicit:    { pos: "#4a90d9", neg: "#e8c06a", boundary: "#2c5f9a" },
-    kernel:      { pos: "#e87c4a", neg: "#6ac4e8", boundary: "#9a4a1e" },
-    reuploading: { pos: "#5ab45a", neg: "#d46ab4", boundary: "#2a7a2a" },
+    explicit:    { pos: "#4a90d9", neg: "#e8c06a" },
+    kernel:      { pos: "#e87c4a", neg: "#6ac4e8" },
+    reuploading: { pos: "#5ab45a", neg: "#d46ab4" },
 };
 
 const PLOTLY_BASE = {
@@ -9,81 +9,127 @@ const PLOTLY_BASE = {
     displayModeBar: false,
 };
 
-function buildScatterTraces(points) {
-    if (!points?.length) return [];
-    const cls0x = [], cls0y = [], cls1x = [], cls1y = [];
-    for (const p of points) {
-        if (p.label === 0) { cls0x.push(p.x); cls0y.push(p.y); }
-        else               { cls1x.push(p.x); cls1y.push(p.y); }
-    }
-    return [
-        {
-            x: cls0x, y: cls0y, mode: "markers", type: "scatter",
-            marker: { color: "#1565c0", size: 5, symbol: "circle",
-                      line: { color: "white", width: 0.5 } },
-            name: "Class 0", showlegend: false,
-        },
-        {
-            x: cls1x, y: cls1y, mode: "markers", type: "scatter",
-            marker: { color: "#c62828", size: 5, symbol: "square",
-                      line: { color: "white", width: 0.5 } },
-            name: "Class 1", showlegend: false,
-        },
-    ];
-}
+// Slightly-tilted isometric view, zoomed in
+export const DEFAULT_CAMERA = {
+    eye:    { x: 0.8, y: -0.8, z: 0.65 },
+    up:     { x: 0,   y: 0,    z: 1    },
+    center: { x: 0,   y: 0,    z: 0    },
+};
+
+// Moons home — same tilt but rotated 90° clockwise in XY
+export const MOONS_DEFAULT_CAMERA = {
+    eye:    { x: -0.8, y: -0.8, z: 0.65 },
+    up:     { x: 0,    y: 0,    z: 1    },
+    center: { x: 0,    y: 0,    z: 0    },
+};
+
+// Top-down view for Circle — up matches Circle home direction (0.8, -0.8) → up = (-√2/2, √2/2)
+export const TOP_CAMERA = {
+    eye:    { x: 0,      y: 0,     z: 1.4 },
+    up:     { x: -0.707, y: 0.707, z: 0   },
+    center: { x: 0,      y: 0,     z: 0   },
+};
+
+// Top-down view for Moons — up rotated 45° CW to match Moons home direction
+export const MOONS_TOP_CAMERA = {
+    eye:    { x: 0,     y: 0,     z: 1.4 },
+    up:     { x: 0.707, y: 0.707, z: 0   },
+    center: { x: 0,     y: 0,     z: 0   },
+};
 
 /**
- * Render a single decision-boundary panel.
+ * Render a decision-boundary panel as an interactive 3D surface.
  *
  * @param {HTMLElement} container
- * @param {object} heatmap  { x: number[], y: number[], z: number[][] }
- *                          z values are probabilities in [0,1] for class 1
- * @param {object[]} points [{ x, y, label }] scatter points
- * @param {string} method   "explicit" | "kernel" | "reuploading"
+ * @param {object|null} heatmap  { x, y, z } — z is P(class 1) in [0, 1]
+ * @param {object[]|null} points [{ x, y, label }] scatter points
+ * @param {string} method        "explicit" | "kernel" | "reuploading"
+ * @param {object|null} camera   Plotly scene.camera object; null → DEFAULT_CAMERA
  */
-export function renderBoundaryPlot(container, heatmap, points, method) {
+export function renderBoundarySurface(container, heatmap, points, method, camera) {
     if (!container) return;
 
     const colors = METHOD_COLORS[method] ?? METHOD_COLORS.reuploading;
-
+    const appliedCamera = camera ?? DEFAULT_CAMERA;
     const traces = [];
 
     if (heatmap?.z?.length) {
         traces.push({
+            type: "surface",
             x: heatmap.x,
             y: heatmap.y,
             z: heatmap.z,
-            type: "heatmap",
             colorscale: [
-                [0,   colors.neg],
-                [0.5, "#f8f4ee"],
-                [1,   colors.pos],
+                [0,    colors.neg],
+                [0.45, "#f8f4ee"],
+                [0.55, "#f8f4ee"],
+                [1,    colors.pos],
             ],
-            zmin: 0, zmax: 1,
+            cmin: 0, cmax: 1,
             showscale: false,
-            hoverinfo: "skip",
+            opacity: 0.72,
+            contours: {
+                z: {
+                    show: true,
+                    start: 0.5, end: 0.5, size: 0.1,
+                    color: "rgba(20,20,20,0.85)",
+                    width: 3,
+                    usecolormap: false,
+                },
+            },
+            hovertemplate: "x: %{x:.2f}<br>y: %{y:.2f}<br>P(1): %{z:.2f}<extra></extra>",
         });
     } else {
-        // Placeholder while no data is loaded
         traces.push({
-            x: [-1, 1], y: [-1, 1],
-            mode: "text",
+            type: "scatter3d", mode: "text",
+            x: [0], y: [0], z: [0.5],
             text: ["No data"],
             textfont: { color: "#aaa", size: 11 },
-            type: "scatter",
             showlegend: false,
         });
     }
 
-    traces.push(...buildScatterTraces(points));
+    // Scatter points floating just above the surface
+    if (points?.length) {
+        const cls0x = [], cls0y = [], cls1x = [], cls1y = [];
+        for (const p of points) {
+            if (p.label === 0) { cls0x.push(p.x); cls0y.push(p.y); }
+            else               { cls1x.push(p.x); cls1y.push(p.y); }
+        }
+        const Z = 0.5;
+        if (cls0x.length) traces.push({
+            type: "scatter3d", mode: "markers",
+            x: cls0x, y: cls0y, z: cls0x.map(() => Z),
+            marker: { color: "#1565c0", size: 2.5 },
+            showlegend: false, hoverinfo: "skip",
+        });
+        if (cls1x.length) traces.push({
+            type: "scatter3d", mode: "markers",
+            x: cls1x, y: cls1y, z: cls1x.map(() => Z),
+            marker: { color: "#c62828", size: 2.5, symbol: "square" },
+            showlegend: false, hoverinfo: "skip",
+        });
+    }
 
     const layout = {
         margin: { t: 0, b: 0, l: 0, r: 0 },
-        xaxis: { visible: false, fixedrange: true },
-        yaxis: { visible: false, fixedrange: true, scaleanchor: "x" },
+        scene: {
+            xaxis: { visible: false, showgrid: false },
+            yaxis: { visible: false, showgrid: false },
+            zaxis: {
+                title: "", range: [0, 1.1],
+                tickvals: [0, 0.5, 1], ticktext: ["0", "·5", "1"],
+                tickfont: { size: 8 },
+                gridcolor: "rgba(23,33,29,0.08)",
+            },
+            camera: appliedCamera,
+            dragmode: "turntable",
+            aspectmode: "manual",
+            aspectratio: { x: 1, y: 1, z: 0.55 },
+            bgcolor: "rgba(0,0,0,0)",
+        },
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor:  "rgba(0,0,0,0)",
-        dragmode: false,
     };
 
     if (container._hasPlot) {

@@ -147,4 +147,58 @@ Pérez-Salinas et al. (2020) 證明了單一 qubit 的 data reuploading 是 univ
 
 ---
 
-_訓練結果與具體數字將在跑完後補充到這裡。_
+## 結果討論
+
+### 數字總覽
+
+| Run | LE | LR | Explicit Circle | Explicit Moons | Kernel Circle | Kernel Moons | Reup Circle | Reup Moons |
+|---|---|---|---|---|---|---|---|---|
+| q2-le2-lr2 | 2 | 2 | 70.0% | 83.3% | 96.7% | 85.0% | 78.3% | 93.3% |
+| q2-le4-lr4 | 4 | 4 | 75.0% | 83.3% | 96.7% | 85.0% | 91.7% | 98.3% |
+| q2-le4-lr8 | 4 | 8 | 75.0% | 83.3% | 96.7% | 85.0% | 96.7% | **100%** |
+| q2-le6-lr6 | 6 | 6 | 73.3% | 85.0% | 96.7% | 85.0% | 96.7% | 98.3% |
+
+---
+
+### Explicit：一次 encoding 的代價
+
+Explicit 在所有 run 裡表現最差，且**幾乎不隨層數增加而改善**——Circle 從 L=2 的 70% 到 L=4 的 75%，之後就停在那裡；Moons 更是從頭到尾卡在 83–85%。
+
+這直接反映它的架構限制：資料在最前面用 `RX(x₀), RX(x₁)` encode 一次後，後面的 variational block 完全看不到原始資料，只能在初始量子態的 Hilbert space 裡轉來轉去。問題在於 `RX` 是獨立旋轉兩個 qubit，**沒有直接 encode `‖x‖² = x₀² + x₁²`**，而 Circle 的邊界正好是一個等半徑圓。這個資訊被 encoding 本身丟掉了，後面再多層都補不回來。
+
+Moons 上 Explicit 能到 83–85%，比 Circle 好，是因為 `CNOT` 糾纏讓兩個 qubit 之間有互動，對局部結構稍微好一點。但非凸邊界對它來說仍然太難。
+
+---
+
+### Kernel：不訓練的底氣
+
+Kernel 的數字在所有 run 都一樣（Circle 96.7%、Moons 85.0%），因為它的量子電路是固定的，feature map 和 kernel matrix 不隨 LE/LR 改變。
+
+Circle 上 96.7% 很亮眼。ZZFeatureMap 用了 `H + RZ(xᵢ) + CNOT + RZ(x₀·x₁)` 的結構，cross term `x₀·x₁` 等價於引入 `cos(θ)sin(θ)` 型的非線性，再經過 kernel 的 inner product，能夠隱式地「感覺到」資料點離原點的距離，讓 SVM 在這個空間找到一個很好的超平面。
+
+Moons 上卡在 85%。非凸邊界需要兩個獨立的局部決策，但固定的 kernel 只有一個 feature space，SVM 能用的支持向量有限，沒辦法做出兩個分離的決策區域。這是 **kernel expressibility 的天花板**，不是訓練問題。
+
+**有趣的 reversal**：在 Circle 上，Kernel（96.7%）大勝小層數的 Reuploading（L=2 只有 78.3%）。這說明針對特定幾何結構設計的固定 feature map，可以比沒有學夠的 variational 模型更有效率。
+
+---
+
+### Reuploading：層數的力量
+
+Reuploading 是三個方法裡唯一**隨層數有系統性提升**的：
+
+- **Circle**：L=2 → 78.3%，L=4 → 91.7%，L=6/8 → 96.7%
+- **Moons**：L=2 → 93.3%，L=4 → 98.3%，L=8 → **100%**
+
+這和理論預測完全一致。每多一層 reuploading，Fourier 近似可以用的最高頻率就增加一次，決策邊界可以描述的形狀就更複雜。Moons 在 L=8 達到 100%，代表 8 個 Fourier 頻率已經足夠描述這個非凸邊界。
+
+值得注意的是 LR=8 比 LR=6 在 Moons 上多了 1.7%（100% vs 98.3%），而在 Circle 上兩者持平（96.7%）。這說明 Circle 在 L=6 時已經學夠了，Moons 需要多一點頻率才能消除剩下的錯誤。
+
+---
+
+### 整體結論
+
+這三種方法的結果清楚地反映了各自的設計哲學：
+
+- **Explicit 的天花板來自 encoding**，不是 variational 層數。在資訊進入電路的那一刻就決定了模型能學什麼。
+- **Kernel 的強項是針對特定幾何結構的隱式表達**，但 feature map 的選擇決定上限，沒有辦法靠訓練突破。
+- **Reuploading 是最靈活的**，代價是需要更多層（更多電路深度）來達到同樣的效果。在 NISQ 裝置上電路深度越深，noise 越嚴重，這個 trade-off 在真實硬體上會更明顯。
