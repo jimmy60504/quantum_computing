@@ -113,6 +113,26 @@ h2 {
     line-height: 1.25;
 }
 
+.github-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 160ms ease;
+}
+
+.github-link:hover {
+    color: var(--brand);
+}
+
+.github-link svg {
+    flex-shrink: 0;
+}
+
 /* ── Mobile layout ────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
     body {

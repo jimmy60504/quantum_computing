@@ -3,6 +3,14 @@
 Local Qiskit and PennyLane experiments with a Conda workflow on macOS and a
 Docker-based execution workflow on `gx10`.
 
+## Live demos on Hugging Face Spaces
+
+| Problem | Space | Description |
+|---------|-------|-------------|
+| HW1 Problem 1 | [Data Reuploading Explorer](https://huggingface.co/spaces/jimmy60504/Data-Reuploading-Demo) | Quantum regression with data reuploading circuits |
+| HW1 Problem 2 | [QML Classifier Explorer](https://huggingface.co/spaces/jimmy60504/QML-Classifier-Explorer) | Explicit / kernel / reuploading classifiers compared |
+| HW1 Problem 3 | *(uploading after training)* | Hybrid QNN vs MLP on CIFAR-10 |
+
 ## At a glance
 
 - Local source of truth: this repository on your Mac
@@ -22,9 +30,9 @@ The intended workflow is:
 
 ## Repository layout
 
-- `HW1/problem1/`: current regression experiments, training pipeline, render tools
-- `HW1/problem2/`: classification scaffold
-- `HW1/problem1/hf_space/`: static Hugging Face viewer scaffold for Problem 1
+- `HW1/problem1/`: quantum regression with data reuploading circuits; HF Space viewer
+- `HW1/problem2/`: explicit / kernel / reuploading QML classifiers; HF Space viewer
+- `HW1/problem3/`: hybrid QNN vs MLP on CIFAR-10; HF Space viewer
 - `scripts/`: sync, Docker-run wrappers, MLflow helpers, viewer helpers
 - `kb/`: lightweight research notes and templates
 - `hello_qiskit.py`, `pennylane_hello.py`, `qft_demo.py`: small local demos
