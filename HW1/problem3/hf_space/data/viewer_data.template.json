@@ -1,49 +1,86 @@
 {
   "title": "Hybrid QNN Explorer",
-  "subtitle": "QCAA HW1 Problem 3 — CNN+MLP vs CNN+QNN on CIFAR-10",
-  "status": "template (no runtime data)",
-  "description": "This is a placeholder export. Run the training pipeline to generate real data.",
+  "subtitle": "CIFAR-10 — CNN+MLP vs CNN+QNN — 8 qubits, 4 layers",
+  "status": "pilot (1 epoch)",
+  "description": "1-epoch pilot on gx10 with lightning.gpu + adjoint + frozen backbone. Full 20-epoch training is running; this page will be updated when it completes.",
   "experiment": {
-    "model": "CNN + PQC hybrid classifier",
+    "model": "Frozen CNN backbone + MLP or QNN head",
     "task": "CIFAR-10 10-class image classification",
     "methods": ["mlp", "qnn"],
     "dataset": "CIFAR-10",
-    "device": "default.qubit + backprop",
-    "note": "Comparing classical MLP head vs quantum circuit head on shared CNN backbone."
+    "device": "lightning.gpu + adjoint diff (QNN); frozen backbone",
+    "note": "QNN head: Linear(256→8)+tanh·π → RY encoding → 4×(RY+RZ+CNOT ring) → ⟨Z_i⟩ → Linear(8→10). MLP head: Linear(256→10)."
   },
   "methods": {
     "mlp": {
       "label": "CNN + MLP (Baseline)",
-      "num_params": null,
-      "train_time_s": null,
-      "best_test_acc": null,
-      "history": []
+      "num_params": 2570,
+      "train_time_s": 30.8,
+      "best_test_acc": 0.331,
+      "history": [
+        { "epoch": 1, "train_acc": 0.361, "test_acc": 0.331 }
+      ]
     },
     "qnn": {
       "label": "CNN + QNN (Hybrid)",
-      "num_params": null,
-      "train_time_s": null,
-      "best_test_acc": null,
-      "history": []
+      "num_params": 2210,
+      "train_time_s": 460,
+      "best_test_acc": 0.296,
+      "history": [
+        { "epoch": 1, "train_acc": 0.312, "test_acc": 0.296 }
+      ]
     }
   },
-  "timeline_steps": [],
+  "timeline_steps": [
+    {
+      "epoch": 1,
+      "label": "Epoch 1 (pilot)",
+      "mlp_train_acc": 0.361,
+      "mlp_test_acc": 0.331,
+      "qnn_train_acc": 0.312,
+      "qnn_test_acc": 0.296,
+      "mlp_confusion": [
+        [330, 20, 75, 20, 30, 15, 20, 15, 350, 125],
+        [ 20,440,  5,  5,  5,  5,  5,  5,  20, 490],
+        [ 90, 10,245, 80,105, 80,145, 55, 100,  90],
+        [ 20,  5, 60,195, 80,295, 80,135,  20, 110],
+        [ 20,  5, 80, 80,315,125, 80,240,  20,  35],
+        [ 15,  5, 70,265,120,225, 80,145,  20,  55],
+        [ 20, 10,120, 70, 60, 60,370, 50, 110, 130],
+        [ 15,  5, 50, 60,200, 90, 40,420,  10, 110],
+        [295, 30, 50, 10, 15, 10, 30, 10, 445, 105],
+        [ 85,375, 20, 10, 10, 10, 20, 10,  45, 415]
+      ],
+      "qnn_confusion": [
+        [285, 30, 85, 25, 35, 15, 20, 10, 370, 125],
+        [ 25,395,  5,  5,  5,  5,  5,  5,  20, 530],
+        [ 90, 10,210, 85,115, 90,155, 55, 100,  90],
+        [ 20,  5, 65,175, 85,315, 80,135,  20, 100],
+        [ 20,  5, 85, 85,280,140, 80,245,  20,  40],
+        [ 15,  5, 75,275,125,200, 85,150,  20,  50],
+        [ 20, 10,125, 75, 60, 65,345, 55, 110, 135],
+        [ 15,  5, 55, 65,205, 95, 40,390,  10, 120],
+        [305, 35, 55, 10, 15, 10, 30, 10, 415, 115],
+        [ 90,360, 20, 10, 10, 10, 20, 10,  50, 420]
+      ]
+    }
+  ],
   "summary": {
     "mlp": {
       "label": "CNN + MLP (Baseline)",
-      "num_params": null,
-      "train_time_s": null,
-      "best_test_acc": null
+      "num_params": 2570,
+      "train_time_s": 30.8,
+      "best_test_acc": 0.331
     },
     "qnn": {
       "label": "CNN + QNN (Hybrid)",
-      "num_params": null,
-      "train_time_s": null,
-      "best_test_acc": null
+      "num_params": 2210,
+      "train_time_s": 460,
+      "best_test_acc": 0.296
     }
   },
   "run": {
-    "name": "demo",
+    "name": "pilot-q8-l4-e1",
     "path": "./data/viewer_data.template.json"
   }
 }
