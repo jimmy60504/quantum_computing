@@ -1,86 +1,86 @@
-# Problem 3 — Answers
+# Problem 3 — 作答
 
-Seed: 11224001. Dataset: CIFAR-10 (50,000 train / 10,000 test). CNN backbone is fixed (not modified).
+隨機種子：11224001。資料集：CIFAR-10（50,000 訓練 / 10,000 測試）。CNN backbone 為固定架構，不做修改。
 
 ---
 
-## (a) Quantum circuit design
+## (a) 量子電路設計
 
-### Data encoding
+### 資料編碼策略
 
-The 256-dimensional CNN feature vector is first reduced by a classical linear layer:
+CNN 輸出的 256 維特徵向量先透過一個經典線性層降維：
 
 ```
 Linear(256 → n_qubits) + tanh(·) × π
 ```
 
-This compresses the feature space to one value per qubit, then scales the result to the encoding range [−π, π]. Each value is then encoded onto its corresponding qubit via an RY rotation:
+此步驟將特徵壓縮至每個量子位元一個數值，並縮放至角度編碼範圍 [−π, π]。接著透過 RY 旋轉將每個數值編碼至對應的量子位元：
 
 ```
-RY(x_i) on qubit i,  for i = 0, …, n_qubits − 1
+RY(x_i) 作用於量子位元 i，i = 0, …, n_qubits − 1
 ```
 
-### Variational circuit
+### 變分量子電路
 
-Each of the L variational layers consists of single-qubit trainable rotations followed by a CNOT entangling ring:
-
-```
-for each layer ℓ = 1, …, L:
-    RY(θ_{ℓ,i}) · RZ(φ_{ℓ,i})  for each qubit i
-    CNOT(i → (i+1) mod n_qubits)  for each qubit i     [ring topology]
-```
-
-Total quantum parameters: L × n_qubits × 2.
-
-### Measurement and post-processing
-
-The PauliZ expectation value ⟨Z_i⟩ is measured on each qubit, yielding an n_qubits-dimensional real vector. A final classical linear layer maps these expectations to 10-class logits:
+每個變分層由單量子位元的可訓練旋轉加上 CNOT 環狀糾纏組成：
 
 ```
-Linear(n_qubits → 10) → class logits
+對每層 ℓ = 1, …, L：
+    RY(θ_{ℓ,i}) · RZ(φ_{ℓ,i})  作用於每個量子位元 i
+    CNOT(i → (i+1) mod n_qubits)  作用於每個量子位元 i   [環狀拓撲]
 ```
 
-### Configuration used
+量子可訓練參數數量：L × n_qubits × 2。
 
-| Hyperparameter | Value |
+### 量測與後處理
+
+對每個量子位元量測 PauliZ 期望值 ⟨Z_i⟩，得到 n_qubits 維的實數向量。最後透過一個經典線性層將量子讀出值映射為 10 類別的 logits：
+
+```
+Linear(n_qubits → 10) → 分類 logits
+```
+
+### 實驗設定
+
+| 超參數 | 值 |
 |---|---|
-| n_qubits | 8 |
-| Variational layers L | 4 |
-| Diff. method | adjoint (lightning.gpu) |
-| Backbone | Frozen |
+| 量子位元數 n_qubits | 8 |
+| 變分層數 L | 4 |
+| 梯度計算方法 | adjoint（lightning.gpu） |
+| CNN Backbone | 凍結（不訓練） |
 
-Trainable parameters: Linear(256→8) [2,056] + weights [64] + Linear(8→10) [90] = **2,210 total**.
+可訓練參數：Linear(256→8) [2,056] + 量子權重 [64] + Linear(8→10) [90] = **共 2,210 個**。
 
 ---
 
-## (b) Test accuracy
+## (b) 測試準確率
 
-| Model | Test Accuracy |
+| 模型 | 測試準確率 |
 |---|---|
-| CNN + MLP (baseline) | 33.1 % (1 epoch) — full training in progress |
-| CNN + QNN (hybrid) | 29.6 % (1 epoch) — full training in progress |
+| CNN + MLP（基準） | 33.1 %（1 epoch 初步結果）— 完整訓練進行中 |
+| CNN + QNN（混合） | 29.6 %（1 epoch 初步結果）— 完整訓練進行中 |
 
-*(Results above are from a 1-epoch pilot run with frozen backbone. Full 20-epoch results will be updated here.)*
+*(以上為凍結 backbone 下 1 epoch pilot run 的結果，完整 20 epoch 訓練完成後將更新數值。)*
 
 ---
 
-## (c) Comparison table
+## (c) 比較表
 
-| Model | Test Acc | Trainable Params | Training Time |
+| 模型 | 測試準確率 | 可訓練參數數 | 訓練時間 |
 |---|---|---|---|
-| CNN + MLP | 33.1 % (1 ep.) | 2,570 | 30.8 s / epoch |
-| CNN + QNN | 29.6 % (1 ep.) | 2,210 | ≈ 460 s / epoch (lightning.gpu) |
+| CNN + MLP | 33.1 %（1 ep.） | 2,570 | 30.8 s / epoch |
+| CNN + QNN | 29.6 %（1 ep.） | 2,210 | ≈ 460 s / epoch（lightning.gpu） |
 
-The MLP head is a single `Linear(256, 10)` layer. The QNN head adds a classical pre-layer, 64 quantum parameters, and a classical post-layer, for a slightly smaller trainable parameter count than the MLP.
-
----
-
-## (d) Training curves
-
-Training loss and test accuracy curves for both models (plotted per epoch) are shown in the interactive viewer after full training completes.
+MLP head 為單層 `Linear(256, 10)`。QNN head 額外加入前處理線性層、64 個量子參數與後處理線性層，可訓練參數總數略少於 MLP。
 
 ---
 
-## (e) Discussion
+## (d) 訓練曲線
 
-The hybrid CNN + QNN model uses a parameterized quantum circuit as a drop-in replacement for the MLP classification head, encoding CNN features into qubit rotations and extracting class information from Pauli-Z expectation values. With a frozen backbone and 8 qubits, the QNN operates in a highly compressed latent space (8-dimensional), which limits its expressibility relative to the 256-dimensional MLP head but drastically reduces trainable parameters. The key design choice is the classical pre- and post-processing layers: the pre-layer learns which linear projection of the 256-D feature vector is most informative to encode into the circuit, while the post-layer maps quantum readouts to class logits. The CNOT ring entanglement structure introduces qubit correlations at each layer, enabling the circuit to capture feature interactions that pure angle encoding without entanglement could not represent. Whether the QNN can match or exceed the MLP baseline on CIFAR-10 is an open question that depends on whether the quantum feature map offers any advantage over a linear classifier in the frozen-backbone setting; initial results suggest a small performance gap, which is consistent with findings in the literature for near-term quantum classifiers on classical benchmark datasets.
+兩個模型的 per-epoch 訓練損失與測試準確率曲線顯示於互動介面，完整訓練完成後可於介面中查看。
+
+---
+
+## (e) 討論
+
+本實驗以參數化量子電路（PQC）取代 MLP 分類頭，將 CNN 特徵透過旋轉角度編碼至量子位元，並從 Pauli-Z 期望值中提取分類資訊。在凍結 backbone 且使用 8 個量子位元的設定下，QNN 在高度壓縮的 8 維潛在空間中運作，相較於 MLP 直接操作的 256 維空間，表達能力受限，但可訓練參數數量明顯減少。關鍵設計選擇在於前後兩層經典線性層：前處理層學習將 256 維特徵投影至電路最有效的編碼方向，後處理層則將量子讀出值轉換為分類輸出。CNOT 環狀糾纏結構在每層引入量子位元間的關聯，使電路能捕捉純角度編碼所無法表達的特徵交互關係。QNN 能否在 CIFAR-10 上匹敵甚至超越 MLP 基準，取決於量子特徵映射在凍結 backbone 設定下是否具有超越線性分類器的優勢；初步結果顯示兩者存在小幅差距，與近期文獻中近期量子分類器在經典資料集上的表現一致。
