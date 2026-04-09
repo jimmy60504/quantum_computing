@@ -24,6 +24,10 @@ def _build_model(method: str, config: Prob3Config) -> nn.Module:
             feature_dim=config.feature_dim,
             freeze_backbone=config.freeze_backbone,
         )
+    elif method == "mlp_unf":
+        model = CNNMLPClassifier(feature_dim=config.feature_dim, freeze_backbone=False)
+        model.method_label = "CNN + MLP (Unfrozen)"
+        return model
     elif method == "qnn":
         return CNNQNNClassifier(
             feature_dim=config.feature_dim,
@@ -103,11 +107,21 @@ def train_method(method: str, config: Prob3Config, run_dir: Path | None = None) 
         running_correct = 0
         running_seen = 0
 
+        # Pre-compute which batch indices to checkpoint this epoch
+        n_batches = len(train_loader)
+        _ckpt_steps: set[int] = set()
+        if config.checkpoint_freq > 0 and run_dir is not None:
+            _ckpt_steps = {
+                round(i * n_batches / config.checkpoint_freq)
+                for i in range(1, config.checkpoint_freq + 1)
+            }
+
         pbar = tqdm(
             train_loader,
             desc=f"[{method}] Epoch {epoch}/{config.epochs}",
             leave=False,
         )
+        global_step = 0
         for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -116,6 +130,7 @@ def train_method(method: str, config: Prob3Config, run_dir: Path | None = None) 
             loss.backward()
             optimizer.step()
 
+            global_step += 1
             batch_size = labels.size(0)
             running_loss += loss.item() * batch_size
             running_correct += (logits.argmax(1) == labels).sum().item()
@@ -125,6 +140,16 @@ def train_method(method: str, config: Prob3Config, run_dir: Path | None = None) 
                 loss=f"{running_loss / running_seen:.4f}",
                 acc=f"{running_correct / running_seen:.3f}",
             )
+
+            # Save checkpoint at evenly-spaced steps within each epoch
+            if run_dir is not None and config.checkpoint_freq > 0 and global_step in _ckpt_steps:
+                ckpt_dir = run_dir / "checkpoints"
+                ckpt_dir.mkdir(parents=True, exist_ok=True)
+                step_id = (epoch - 1) * len(train_loader) + global_step
+                torch.save(
+                    model.state_dict(),
+                    ckpt_dir / f"{method}_step{step_id:06d}.pt",
+                )
 
         scheduler.step()
 
@@ -200,7 +225,7 @@ def assemble_viewer(config: Prob3Config, run_dir: Path) -> Path:
     export_path = resolve_viewer_export_path(config)
     manifest_path = resolve_viewer_manifest_path(config)
 
-    write_viewer_export(config, export_path, artifacts)
+    write_viewer_export(config, export_path, artifacts, run_dir=run_dir)
     print(f"Viewer export → {export_path}")
 
     best_acc = max(

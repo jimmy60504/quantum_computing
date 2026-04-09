@@ -29,6 +29,9 @@ class Prob3Config:
     q_device_name: str = "default.qubit"
     q_diff_method: str = "backprop"
 
+    # Checkpointing
+    checkpoint_freq: int = 0  # checkpoints to save per epoch across ALL epochs (0=off)
+
     # Viewer export
     viewer_export_every: int = 1  # export every N epochs
     viewer_export_path: str = str(RUNTIME_DIR)

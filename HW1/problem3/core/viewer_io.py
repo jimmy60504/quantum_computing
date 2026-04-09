@@ -93,13 +93,41 @@ def build_viewer_payload(
     }
 
 
+def _load_probe_artifact(run_dir: Path) -> dict | None:
+    probe_path = run_dir / "probe_artifact.json"
+    if probe_path.exists():
+        return json.loads(probe_path.read_text())
+    return None
+
+
+def _load_tsne_artifact(run_dir: Path) -> dict | None:
+    tsne_path = run_dir / "tsne_artifact.json"
+    if tsne_path.exists():
+        return json.loads(tsne_path.read_text())
+    return None
+
+
 def write_viewer_export(
     config: Prob3Config,
     export_path: Path,
     artifacts: dict[str, dict],
+    run_dir: Path | None = None,
 ) -> Path:
     export_path.parent.mkdir(parents=True, exist_ok=True)
     payload = build_viewer_payload(config, export_path, artifacts)
+
+    # Merge probe data if available
+    if run_dir is not None:
+        tsne = _load_tsne_artifact(run_dir)
+        if tsne:
+            payload["tsne_probes"] = tsne
+            n_frames = max(
+                (len(md.get("preds", md.get("coords", [])))
+                 for md in tsne.get("methods", {}).values()),
+                default=0,
+            )
+            print(f"Included t-SNE data: {len(tsne.get('samples', []))} samples, {n_frames} frames")
+
     export_path.write_text(json.dumps(payload, indent=2) + "\n")
     return export_path
 

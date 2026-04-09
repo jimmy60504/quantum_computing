@@ -127,6 +127,37 @@
         </div>
       </section>
 
+      <!-- feature space evolution (t-SNE / UMAP) -->
+      <section id="tsne-section" class="canvas-card" hidden>
+        <div class="section-heading">
+          <div>
+            <h2>Feature Space Evolution</h2>
+            <p class="section-sub">Model output probability space (10-D → 2-D via UMAP) across training steps — watch predictions separate into class clusters</p>
+          </div>
+        </div>
+        <div class="tsne-controls">
+          <button id="tsne-play" class="tsne-play-btn" type="button">▶ Play</button>
+          <input id="tsne-slider" type="range" min="0" max="49" value="0" class="tsne-step-slider" />
+          <span id="tsne-step-label" class="tsne-step-label">Step —</span>
+        </div>
+        <div class="confusion-grid">
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-mlp">MLP</span>
+              CNN + MLP Baseline
+            </div>
+            <div id="tsne-mlp" class="confusion-plot"></div>
+          </article>
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-qnn">QNN</span>
+              CNN + QNN Hybrid
+            </div>
+            <div id="tsne-qnn" class="confusion-plot"></div>
+          </article>
+        </div>
+      </section>
+
       <!-- training curves -->
       <section class="canvas-card">
         <div class="section-heading">

@@ -4,10 +4,11 @@ import {
     stepSlider, currentStepLabel,
     mlpAccPill, qnnAccPill, chartEmpty,
     experimentMeta, cmPlots, lossChart,
+    tsneSection, tsnePlots,
     state,
 } from "./dom.js";
 import { bindImageLightbox, bindAnalysisModal } from "./overlays.js";
-import { renderTrainingCurves, renderConfusionMatrix, renderEmptyState } from "./charts.js";
+import { renderTrainingCurves, renderConfusionMatrix, renderTsneChart, renderEmptyState } from "./charts.js";
 import {
     formatAcc, formatParams, formatTime, formatInteger,
     appendMetaRow, withCacheBust,
@@ -79,6 +80,88 @@ function refreshStepState(data, index) {
     setLoadingState({ visible: false });
 }
 
+// ── t-SNE feature space ──────────────────────────────────────────────────────
+
+let tsneAnimTimer = null;
+
+function renderTsneStep(tsneData, stepIdx) {
+    for (const method of METHODS) {
+        const methodData = tsneData.methods?.[method];
+        const container = tsnePlots[method] ?? document.getElementById(`tsne-${method}`);
+        if (!methodData || !container) continue;
+        renderTsneChart(container, methodData, tsneData.samples, stepIdx, method);
+    }
+    const firstMethodKey = Object.keys(tsneData.methods ?? {})[0];
+    const steps = tsneData.methods?.[firstMethodKey]?.steps ?? [];
+    const label = document.getElementById("tsne-step-label");
+    if (label) label.textContent = `Step ${steps[stepIdx] ?? stepIdx + 1}`;
+    state.activeTsneStep = stepIdx;
+}
+
+function initTsneSection(data) {
+    const tsneData = data.tsne_probes;
+    if (!tsneData?.methods || !tsneSection) {
+        if (tsneSection) tsneSection.hidden = true;
+        return;
+    }
+    tsneSection.hidden = false;
+    state.activeTsneStep = 0;
+
+    // Stop any running animation when re-loading a run
+    if (tsneAnimTimer) {
+        clearInterval(tsneAnimTimer);
+        tsneAnimTimer = null;
+    }
+
+    const firstMethodKey = Object.keys(tsneData.methods)[0];
+    const firstMethod = tsneData.methods[firstMethodKey];
+    const maxFrames = firstMethod?.coords?.length ?? firstMethod?.preds?.length ?? 1;
+
+    // Use direct property assignment so re-initialization replaces old handlers
+    const slider = document.getElementById("tsne-slider");
+    const playBtn = document.getElementById("tsne-play");
+
+    if (slider) {
+        slider.min = "0";
+        slider.max = String(maxFrames - 1);
+        slider.value = "0";
+        slider.oninput = () => {
+            if (tsneAnimTimer) {
+                clearInterval(tsneAnimTimer);
+                tsneAnimTimer = null;
+                if (playBtn) playBtn.textContent = "▶ Play";
+            }
+            renderTsneStep(tsneData, parseInt(slider.value));
+        };
+    }
+
+    if (playBtn) {
+        playBtn.textContent = "▶ Play";
+        playBtn.onclick = () => {
+            if (tsneAnimTimer) {
+                clearInterval(tsneAnimTimer);
+                tsneAnimTimer = null;
+                playBtn.textContent = "▶ Play";
+            } else {
+                playBtn.textContent = "⏸ Pause";
+                let step = state.activeTsneStep;
+                tsneAnimTimer = setInterval(() => {
+                    step = (step + 1) % maxFrames;
+                    renderTsneStep(tsneData, step);
+                    if (slider) slider.value = String(step);
+                    if (step === maxFrames - 1) {
+                        clearInterval(tsneAnimTimer);
+                        tsneAnimTimer = null;
+                        playBtn.textContent = "▶ Play";
+                    }
+                }, 120);  // ≈8 fps
+            }
+        };
+    }
+
+    renderTsneStep(tsneData, 0);
+}
+
 // ── run loading ──────────────────────────────────────────────────────────────
 
 function populateExperimentMeta(data, run) {
@@ -116,6 +199,7 @@ async function applyRun(runId) {
 
     renderComparisonTable(state.currentData.summary);
     populateExperimentMeta(state.currentData, selectedRun);
+    initTsneSection(state.currentData);
 
     const steps = state.currentData.timeline_steps || [];
     if (steps.length > 1) {

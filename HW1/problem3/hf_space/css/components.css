@@ -64,6 +64,13 @@
     gap: 16px;
 }
 
+.section-sub {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: var(--muted, #888);
+    font-weight: 400;
+}
+
 .status-pill {
     display: inline-flex;
     align-items: center;
@@ -299,3 +306,4 @@ input[type="range"] {
     font-size: 0.98rem;
     line-height: 1.4;
 }
+

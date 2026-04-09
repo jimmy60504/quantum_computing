@@ -149,6 +149,190 @@ export function renderConfusionMatrix(container, matrix, method) {
     }
 }
 
+// Distinct colors for 10 CIFAR-10 classes (same order as CLASS_NAMES)
+const TSNE_CLASS_COLORS = [
+    "#e6194b", // airplane   — red
+    "#3cb44b", // automobile — green
+    "#4363d8", // bird       — blue
+    "#f58231", // cat        — orange
+    "#911eb4", // deer       — purple
+    "#42d4f4", // dog        — cyan
+    "#f032e6", // frog       — magenta
+    "#bfef45", // horse      — lime
+    "#fabed4", // ship       — pink
+    "#469990", // truck      — teal
+];
+
+/**
+ * Render the UMAP / t-SNE feature-space scatter for one method at one training step.
+ *
+ * Data format (methodData):
+ *   coords    : number[][][]  — [n_steps][N][2] 2-D positions (change each frame)
+ *   preds     : number[][]   — [n_steps][N] predicted class index at each step
+ *   steps     : number[]     — global training step at each frame
+ *   reduction : string        — "umap" | "tsne" | "pca"
+ *
+ * Visualisation (blob → clusters animation):
+ *   • Position   = per-step UMAP coords in shared embedding space
+ *                  (step 1 ≈ one central blob; final step ≈ 10 class clusters)
+ *   • Fill colour = TRUE class (fixed) so you can read which cluster is which
+ *   • Accuracy shown in title
+ *
+ * @param {HTMLElement} container
+ * @param {object} methodData
+ * @param {Array<{class_idx: number, class_name: string}>} samples
+ * @param {number} stepIndex
+ * @param {string} method  "mlp" | "qnn"
+ */
+export function renderTsneChart(container, methodData, samples, stepIndex, method) {
+    if (!container || !methodData?.coords?.length) return;
+
+    const coords = methodData.coords[stepIndex];    // [N][2] — changes each frame
+    const preds  = methodData.preds?.[stepIndex];   // [N]    — for accuracy label
+    if (!coords) return;
+
+    const step = methodData.steps?.[stepIndex] ?? stepIndex;
+    const reductionLabel = (methodData.reduction ?? "umap").toUpperCase();
+    const N = samples.length;
+
+    // Group by TRUE class — track sample index in customdata for hover preview
+    const traces = CLASS_NAMES.map((name, classIdx) => {
+        const xs = [], ys = [], customdata = [];
+        samples.forEach((s, i) => {
+            if (s.class_idx === classIdx && coords[i]) {
+                xs.push(coords[i][0]);
+                ys.push(coords[i][1]);
+                customdata.push(i);   // global sample index → used by hover handler
+            }
+        });
+        return {
+            x: xs, y: ys, customdata,
+            mode: "markers",
+            type: "scatter",
+            name,
+            marker: {
+                color: TSNE_CLASS_COLORS[classIdx],
+                size: 7,
+                opacity: 0.85,
+                line: { width: 0 },
+            },
+            hoverinfo: "none",   // we handle hover ourselves
+        };
+    });
+
+    // Class centroid markers (fixed, computed from full test set at final checkpoint)
+    const centroids = methodData.class_centroids;
+    if (centroids?.length) {
+        traces.push({
+            x: centroids.map(c => c.x),
+            y: centroids.map(c => c.y),
+            mode: "markers+text",
+            type: "scatter",
+            name: "centroids",
+            showlegend: false,
+            text: centroids.map(c => c.class_name),
+            textposition: "top center",
+            textfont: { size: 9, color: "#333" },
+            marker: {
+                symbol: "star",
+                size: 14,
+                color: centroids.map(c => TSNE_CLASS_COLORS[c.class_idx]),
+                line: { color: "#333", width: 1 },
+            },
+            hovertemplate: "%{text}<extra>centroid</extra>",
+        });
+    }
+
+    // Accuracy from predicted classes
+    let accStr = "";
+    if (preds) {
+        const correct = preds.filter((p, i) => p === samples[i].class_idx).length;
+        accStr = ` | Acc ${(correct / N * 100).toFixed(1)}%`;
+    }
+
+    const layout = {
+        margin: { t: 36, b: 8, l: 8, r: 8 },
+        title: {
+            text: `Step ${step}${accStr} &nbsp;(${reductionLabel})`,
+            font: { size: 11, color: "#555" },
+            x: 0.5,
+            xanchor: "center",
+            y: 0.99,
+            yanchor: "top",
+        },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        xaxis: { visible: false },
+        yaxis: { visible: false, scaleanchor: "x" },
+        legend: {
+            orientation: "h",
+            y: -0.02,
+            x: 0.5,
+            xanchor: "center",
+            font: { size: 9 },
+            itemsizing: "constant",
+        },
+        font: { family: "IBM Plex Sans, sans-serif", size: 10 },
+    };
+
+    if (container._hasPlot) {
+        Plotly.react(container, traces, layout, PLOTLY_BASE);
+    } else {
+        Plotly.newPlot(container, traces, layout, PLOTLY_BASE);
+        container._hasPlot = true;
+        _attachTsneHover(container, samples);
+    }
+}
+
+function _getOrCreatePreview() {
+    let el = document.getElementById("tsne-hover-preview");
+    if (!el) {
+        el = document.createElement("div");
+        el.id = "tsne-hover-preview";
+        Object.assign(el.style, {
+            position: "fixed", pointerEvents: "none", zIndex: "9999",
+            display: "none", flexDirection: "column", alignItems: "center",
+            background: "#fff", border: "1px solid #ccc", borderRadius: "6px",
+            padding: "6px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+            fontSize: "11px", color: "#333", lineHeight: "1.4", gap: "3px",
+        });
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+function _attachTsneHover(container, samples) {
+    const preview = _getOrCreatePreview();
+
+    container.on("plotly_hover", function(data) {
+        const pt = data.points[0];
+        if (pt.customdata == null) return;   // centroid marker, skip
+        const sampleIdx = pt.customdata;
+        const s = samples[sampleIdx];
+        if (!s?.image_base64) return;
+
+        preview.innerHTML = `
+            <img src="${s.image_base64}"
+                 style="width:80px;height:80px;image-rendering:pixelated;display:block;">
+            <span style="font-weight:600">${s.class_name}</span>
+        `;
+        preview.style.display = "flex";
+
+        const e = data.event;
+        const vw = window.innerWidth, vh = window.innerHeight;
+        let x = e.clientX + 16, y = e.clientY - 50;
+        if (x + 110 > vw) x = e.clientX - 110;
+        if (y + 110 > vh) y = vh - 120;
+        if (y < 0) y = 8;
+        preview.style.left = x + "px";
+        preview.style.top  = y + "px";
+    });
+
+    container.on("plotly_unhover", function() {
+        preview.style.display = "none";
+    });
+}
+
 export function renderEmptyState() {
     const chartEmpty = document.getElementById("chart-empty");
     if (chartEmpty) {

@@ -6,9 +6,15 @@
     overflow: hidden;
 }
 
-.content-pane > .canvas-card:first-child {
+.content-pane > .canvas-card {
     flex: 1 1 0;
     min-height: 0;
+}
+
+/* probe section: fixed height so Plotly always has a non-zero container */
+#probe-section {
+    flex: 0 0 auto;
+    min-height: 480px;
 }
 
 .content-pane > .canvas-card:last-child {
@@ -74,7 +80,7 @@
 
 .confusion-plot {
     flex: 1 1 auto;
-    min-height: 0;
+    min-height: 240px;
     width: 100%;
     overflow: hidden;
 }
@@ -130,6 +136,53 @@
     display: none !important;
 }
 
+/* ── t-SNE section ─────────────────────────────────────────────────── */
+
+#tsne-section {
+    flex: 0 0 auto;
+    min-height: 520px;
+}
+
+.tsne-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0 8px;
+    flex: 0 0 auto;
+}
+
+.tsne-play-btn {
+    flex: 0 0 auto;
+    height: 28px;
+    padding: 0 12px;
+    border: 1px solid rgba(23, 33, 29, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms ease;
+}
+
+.tsne-play-btn:hover {
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.tsne-step-slider {
+    flex: 1 1 auto;
+    accent-color: var(--brand, #0d8f71);
+    min-width: 0;
+}
+
+.tsne-step-label {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    color: var(--muted, #888);
+    min-width: 5em;
+    text-align: right;
+}
+
 /* ── responsive ────────────────────────────────────────────────────── */
 
 @media (max-width: 1100px) {
@@ -143,10 +196,13 @@
         height: auto;
     }
 
-    .content-pane > .canvas-card:first-child,
-    .content-pane > .canvas-card:last-child {
+    .content-pane > .canvas-card {
         flex: none;
         min-height: 400px;
+    }
+
+    #probe-section {
+        min-height: 520px;
     }
 
     .confusion-grid {

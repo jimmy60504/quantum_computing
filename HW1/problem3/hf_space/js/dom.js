@@ -32,6 +32,16 @@ export const cmPlots = {
 
 export const lossChart = document.getElementById("loss-chart");
 
+// t-SNE feature space
+export const tsneSection   = document.getElementById("tsne-section");
+export const tsneSlider    = document.getElementById("tsne-slider");
+export const tsneStepLabel = document.getElementById("tsne-step-label");
+export const tsnePlayBtn   = document.getElementById("tsne-play");
+export const tsnePlots = {
+    mlp: document.getElementById("tsne-mlp"),
+    qnn: document.getElementById("tsne-qnn"),
+};
+
 // Image lightbox
 export const imageLightbox        = document.getElementById("image-lightbox");
 export const imageLightboxImage   = document.getElementById("image-lightbox-image");
@@ -54,4 +64,5 @@ export const state = {
     activeLoadToken: 0,
     activeStepToken: 0,
     markdownCache: {},
+    activeTsneStep: 0,
 };

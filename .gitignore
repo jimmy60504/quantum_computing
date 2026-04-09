@@ -13,6 +13,7 @@ mlflow.db
 HW1/artifacts/
 hf_space_hw1/runtime/
 HW1/problem1/hf_space/runtime/
+HW1/problem3/hf_space/runtime/
 logs/
 .out/
 .claude/settings.local.json
