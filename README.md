@@ -9,7 +9,7 @@ Docker-based execution workflow on `gx10`.
 |---------|-------|-------------|
 | HW1 Problem 1 | [Data Reuploading Explorer](https://huggingface.co/spaces/jimmy60504/Data-Reuploading-Demo) | Quantum regression with data reuploading circuits |
 | HW1 Problem 2 | [QML Classifier Explorer](https://huggingface.co/spaces/jimmy60504/QML-Classifier-Explorer) | Explicit / kernel / reuploading classifiers compared |
-| HW1 Problem 3 | *(uploading after training)* | Hybrid QNN vs MLP on CIFAR-10 |
+| HW1 Problem 3 | [Hybrid QNN Explorer](https://huggingface.co/spaces/jimmy60504/Hybrid-QNN-Explorer) | Hybrid QNN vs MLP on CIFAR-10 (MLP 41.76% · QNN training) |
 
 ## At a glance
 

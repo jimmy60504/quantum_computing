@@ -1,16 +1,16 @@
 {
   "title": "Hybrid QNN Runs",
-  "default_run": "pilot-q8-l4-e1",
+  "default_run": "q8-l4-e20",
   "runs": [
     {
-      "id": "pilot-q8-l4-e1",
-      "label": "Pilot run — 8q 4L 1 epoch",
+      "id": "q8-l4-e20",
+      "label": "8q 4L 20 epochs (MLP complete · QNN training)",
       "path": "./data/viewer_data.template.json",
-      "epochs": 1,
+      "epochs": 20,
       "methods": ["mlp", "qnn"],
       "num_qubits": 8,
       "num_layers": 4,
-      "best_test_acc": 0.331
+      "best_test_acc": 0.4176
     }
   ]
 }
