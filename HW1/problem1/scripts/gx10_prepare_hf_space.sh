@@ -34,13 +34,12 @@ if [[ "${INCLUDE_RUNTIME}" == "1" && -d "${RUNTIME_DIR}" ]]; then
 fi
 
 if [[ -n "${RUNTIME_DATASET_REPO}" ]]; then
+  RUNTIME_ROOT_URL="https://huggingface.co/datasets/${RUNTIME_DATASET_REPO}/resolve/${RUNTIME_DATASET_REVISION}/"
   mkdir -p "${OUTPUT_DIR}/data"
   cat > "${OUTPUT_DIR}/data/runtime_source.json" <<EOF
 {
-  "mode": "hf_dataset",
-  "hf_dataset_repo": "${RUNTIME_DATASET_REPO}",
-  "hf_dataset_revision": "${RUNTIME_DATASET_REVISION}",
-  "manifest_path": "./runtime/viewer_manifest.json",
+  "runtime_root_url": "${RUNTIME_ROOT_URL}",
+  "manifest_path": "runtime/viewer_manifest.json",
   "fallback_manifest_urls": [
     "./data/viewer_manifest.template.json"
   ]
