@@ -102,43 +102,15 @@
     <!-- ── main pane ──────────────────────────────────────────────────── -->
     <main class="content-pane">
 
-      <!-- confusion matrices -->
-      <section class="canvas-card">
-        <div class="section-heading">
-          <div>
-            <h2>Confusion Matrices</h2>
-          </div>
-        </div>
-        <div class="confusion-grid">
-          <article class="confusion-card">
-            <div class="confusion-header">
-              <span class="confusion-method-tag tag-mlp">MLP</span>
-              CNN + MLP Baseline
-            </div>
-            <div id="cm-mlp" class="confusion-plot"></div>
-          </article>
-          <article class="confusion-card">
-            <div class="confusion-header">
-              <span class="confusion-method-tag tag-qnn">QNN</span>
-              CNN + QNN Hybrid
-            </div>
-            <div id="cm-qnn" class="confusion-plot"></div>
-          </article>
-        </div>
-      </section>
-
-      <!-- feature space evolution (t-SNE / UMAP) -->
+      <!-- feature space evolution (t-SNE) -->
       <section id="tsne-section" class="canvas-card" hidden>
-        <div class="section-heading">
-          <div>
-            <h2>Feature Space Evolution</h2>
-            <p class="section-sub">Model output probability space (10-D → 2-D via UMAP) across training steps — watch predictions separate into class clusters</p>
+        <div class="section-heading tsne-heading">
+          <h2>Feature Space Evolution</h2>
+          <div class="tsne-controls-inline">
+            <button id="tsne-play" class="tsne-play-btn" type="button">▶ Play</button>
+            <input id="tsne-slider" type="range" min="0" max="49" value="0" class="tsne-step-slider" />
+            <span id="tsne-step-label" class="tsne-step-label">Step —</span>
           </div>
-        </div>
-        <div class="tsne-controls">
-          <button id="tsne-play" class="tsne-play-btn" type="button">▶ Play</button>
-          <input id="tsne-slider" type="range" min="0" max="49" value="0" class="tsne-step-slider" />
-          <span id="tsne-step-label" class="tsne-step-label">Step —</span>
         </div>
         <div class="confusion-grid">
           <article class="confusion-card">
@@ -158,25 +130,46 @@
         </div>
       </section>
 
+      <!-- confusion matrices -->
+      <section class="canvas-card">
+        <div class="section-heading">
+          <h2>Confusion Matrices</h2>
+        </div>
+        <div class="confusion-grid">
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-mlp">MLP</span>
+              CNN + MLP Baseline
+            </div>
+            <div id="cm-mlp" class="confusion-plot"></div>
+          </article>
+          <article class="confusion-card">
+            <div class="confusion-header">
+              <span class="confusion-method-tag tag-qnn">QNN</span>
+              CNN + QNN Hybrid
+            </div>
+            <div id="cm-qnn" class="confusion-plot"></div>
+          </article>
+        </div>
+      </section>
+
       <!-- training curves -->
       <section class="canvas-card">
         <div class="section-heading">
-          <div>
-            <div class="timeline-title-row">
-              <h2>Training Curves</h2>
-              <span id="current-step-label" class="timeline-title-pill">—</span>
-              <div class="timeline-slider-inline">
-                <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
-              </div>
-              <div id="timeline-metrics" class="timeline-metrics-row">
-                <span id="mlp-acc-pill" class="timeline-title-pill timeline-metric-pill" hidden>
-                  MLP —
-                </span>
-                <span id="qnn-acc-pill"
-                  class="timeline-title-pill timeline-metric-pill timeline-metric-pill-test" hidden>
-                  QNN —
-                </span>
-              </div>
+          <div class="timeline-title-row">
+            <h2>Training Curves</h2>
+            <span id="current-step-label" class="timeline-title-pill">—</span>
+            <div class="timeline-slider-inline">
+              <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
+            </div>
+            <div id="timeline-metrics" class="timeline-metrics-row">
+              <span id="mlp-acc-pill" class="timeline-title-pill timeline-metric-pill" hidden>
+                MLP —
+              </span>
+              <span id="qnn-acc-pill"
+                class="timeline-title-pill timeline-metric-pill timeline-metric-pill-test" hidden>
+                QNN —
+              </span>
             </div>
           </div>
         </div>
