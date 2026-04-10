@@ -17,8 +17,15 @@
     min-height: 480px;
 }
 
+/* confusion matrices — slightly shorter */
+.content-pane > .canvas-card:nth-child(2) {
+    flex: 0.9 1 0;
+    min-height: 260px;
+}
+
+/* training curves — slightly taller for the chart */
 .content-pane > .canvas-card:last-child {
-    flex: 1.2 1 0;
+    flex: 1.1 1 0;
     min-height: 0;
 }
 
@@ -36,7 +43,7 @@
 
 .confusion-card {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     border: 1px solid var(--line);
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.55);
@@ -46,14 +53,23 @@
 
 .confusion-header {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    padding: 5px 10px;
-    font-size: 0.78rem;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 7px;
+    border-right: 1px solid var(--line);
+    flex: 0 0 auto;
+}
+
+.confusion-header-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.04em;
-    border-bottom: 1px solid var(--line);
-    flex: 0 0 auto;
-    gap: 6px;
+    color: var(--muted, #888);
+    white-space: nowrap;
 }
 
 .confusion-method-tag {
@@ -139,16 +155,30 @@
 /* ── t-SNE section ─────────────────────────────────────────────────── */
 
 #tsne-section {
-    flex: 0 0 auto;
-    min-height: 520px;
+    flex: 1.4 1 0;
+    min-height: 400px;
 }
 
-.tsne-controls {
+/* heading: title left, controls right — all in one row */
+.tsne-heading {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 0 8px;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+
+.tsne-heading h2 {
     flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.tsne-controls-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .tsne-play-btn {
@@ -173,6 +203,7 @@
     flex: 1 1 auto;
     accent-color: var(--brand, #0d8f71);
     min-width: 0;
+    margin: 0;
 }
 
 .tsne-step-label {
@@ -201,8 +232,20 @@
         min-height: 400px;
     }
 
+    #tsne-section {
+        min-height: 480px;
+    }
+
     #probe-section {
         min-height: 520px;
+    }
+
+    .content-pane > .canvas-card:nth-child(2) {
+        flex: none;
+    }
+
+    .tsne-controls-inline {
+        flex-wrap: wrap;
     }
 
     .confusion-grid {

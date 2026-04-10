@@ -120,10 +120,6 @@ def write_viewer_export(
     if run_dir is not None:
         tsne = _load_tsne_artifact(run_dir)
         if tsne:
-            # Normalize method keys: mlp_unf → mlp (viewer always uses "mlp")
-            methods = tsne.get("methods", {})
-            if "mlp_unf" in methods and "mlp" not in methods:
-                methods["mlp"] = methods.pop("mlp_unf")
             payload["tsne_probes"] = tsne
             n_frames = max(
                 (len(md.get("preds", md.get("coords", [])))
