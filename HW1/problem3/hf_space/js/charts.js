@@ -11,49 +11,64 @@ const CLASS_NAMES = [
     "dog", "frog", "horse", "ship", "truck",
 ];
 
+const BATCHES_PER_EPOCH = 781;
+
 /**
  * Render overlaid training curves for MLP vs QNN.
+ *
+ * @param {object[]} epochSteps   - per-epoch timeline records
+ * @param {number}   curEpochFrac - current position as epoch fraction (e.g. 3.5)
+ * @param {object}   stepAccData  - { mlp:{steps,accs}, qnn:{steps,accs} } | null
  */
-export function renderTrainingCurves(steps, current) {
+export function renderTrainingCurves(epochSteps, curEpochFrac, stepAccData) {
     const lossChart = document.getElementById("loss-chart");
-    if (!lossChart || !steps?.length) return;
+    if (!lossChart || !epochSteps?.length) return;
 
-    const epochs = steps.map((s) => s.epoch ?? s.global_step ?? 0);
+    const epochs = epochSteps.map((s) => s.epoch ?? s.global_step ?? 0);
+    const traces = [];
 
-    const traces = [
-        {
-            x: epochs, y: steps.map((s) => s.mlp_train_acc ?? null),
-            name: "MLP train acc", mode: "lines",
-            line: { color: MLP_COLOR, width: 2 },
-        },
-        {
-            x: epochs, y: steps.map((s) => s.mlp_test_acc ?? null),
-            name: "MLP test acc", mode: "lines",
-            line: { color: MLP_COLOR, width: 2, dash: "dot" },
-        },
-        {
-            x: epochs, y: steps.map((s) => s.qnn_train_acc ?? null),
-            name: "QNN train acc", mode: "lines",
-            line: { color: QNN_COLOR, width: 2 },
-        },
-        {
-            x: epochs, y: steps.map((s) => s.qnn_test_acc ?? null),
-            name: "QNN test acc", mode: "lines",
-            line: { color: QNN_COLOR, width: 2, dash: "dot" },
-        },
-    ].filter((t) => t.y.some((v) => v !== null));
+    // Train acc — epoch-level, dotted + semi-transparent
+    for (const [method, color] of [["mlp", MLP_COLOR], ["qnn", QNN_COLOR]]) {
+        const y = epochSteps.map((s) => s[`${method}_train_acc`] ?? null);
+        if (y.some((v) => v !== null))
+            traces.push({
+                x: epochs, y,
+                name: `${method.toUpperCase()} train`, mode: "lines",
+                line: { color, width: 1.5, dash: "dot" }, opacity: 0.5,
+            });
+    }
 
-    const curEpoch = steps[current]?.epoch ?? null;
-    const shapes = curEpoch !== null ? [{
+    // Test acc — 400-pt checkpoint-level when available, else epoch-level
+    for (const [method, color] of [["mlp", MLP_COLOR], ["qnn", QNN_COLOR]]) {
+        const sd = stepAccData?.[method];
+        if (sd?.steps?.length) {
+            traces.push({
+                x: sd.steps.map((s) => s / BATCHES_PER_EPOCH),
+                y: sd.accs,
+                name: `${method.toUpperCase()} test`, mode: "lines",
+                line: { color, width: 2 },
+            });
+        } else {
+            const y = epochSteps.map((s) => s[`${method}_test_acc`] ?? null);
+            if (y.some((v) => v !== null))
+                traces.push({
+                    x: epochs, y,
+                    name: `${method.toUpperCase()} test`, mode: "lines",
+                    line: { color, width: 2 },
+                });
+        }
+    }
+
+    const shapes = curEpochFrac != null ? [{
         type: "line", xref: "x", yref: "paper",
-        x0: curEpoch, x1: curEpoch, y0: 0, y1: 1,
+        x0: curEpochFrac, x1: curEpochFrac, y0: 0, y1: 1,
         line: { color: "rgba(13,143,113,0.5)", width: 1.5, dash: "dot" },
     }] : [];
 
     const layout = {
         margin: { t: 8, b: 36, l: 42, r: 16 },
         paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor:  "rgba(0,0,0,0)",
         xaxis: { title: "Epoch", gridcolor: "rgba(23,33,29,0.08)", zeroline: false },
         yaxis: { gridcolor: "rgba(23,33,29,0.08)", zeroline: false },
         legend: { orientation: "h", y: -0.22, font: { size: 11 } },
