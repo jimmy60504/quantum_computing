@@ -153,27 +153,32 @@
     min-height: 500px;
 }
 
-/* scatter and CM roughly equal, scatter slightly larger */
+/* scatter and CM equal height, sub-heading moved to top row */
 .tsne-grid {
-    flex: 1.1 1 0;
-    min-height: 160px;
-}
-
-.cm-sub-heading {
-    flex: 0 0 auto;
-    padding: 6px 2px 2px;
-}
-
-.cm-sub-heading h3 {
-    font-size: 0.88rem;
-    font-weight: 700;
-    color: var(--text);
+    flex: 1 1 0;
+    min-height: 120px;
 }
 
 .cm-grid {
-    flex: 1 1 0;
+    flex: 1.1 1 0;
     min-height: 0;
-    margin-top: 6px;
+    margin-top: 8px;
+}
+
+/* secondary heading inline with primary */
+.tsne-heading-secondary {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 1.1rem;
+    color: var(--muted, #888);
+}
+
+.tsne-section-divider {
+    flex: 0 0 auto;
+    color: var(--muted, #aaa);
+    font-size: 1.2rem;
+    margin: 0 2px;
+    user-select: none;
 }
 
 /* heading: title left, step label right */

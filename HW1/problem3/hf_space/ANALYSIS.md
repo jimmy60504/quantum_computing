@@ -10,7 +10,7 @@
 
 ## 資料集
 
-CIFAR-10：60,000 張 32×32 RGB 影像，10 個類別，50,000 train / 10,000 test。是評估輕量分類頭的合適 benchmark。
+CIFAR-10：60,000 張 32×32 RGB 影像，10 個類別，50,000 train / 10,000 測試。是評估輕量分類頭的合適 benchmark。
 
 ---
 
@@ -33,20 +33,24 @@ Block 3: Conv2d(64→128, 3×3) → BN → ReLU → MaxPool2d(2)  → 128×4×4
 
 分類頭為單層線性分類器：`Linear(256, 10)`，head 參數 2,570。總參數 **58,890**。
 
-### 模型二：CNN + QNN Hybrid（4 qubits × 2 layers）
+### 模型二：CNN + QNN Hybrid（8 qubits × 4 layers）
 
 ```
 256-D features
-  → Linear(256, 4)      [pre layer, 1,028 params]
+  → Linear(256, 8)      [pre layer, 2,056 params]
   → tanh(·) × π         [scale to [-π, π]]
-  → RY(xᵢ) for i=0..3   [angle encoding]
-  → [RY(θ) + RZ(θ) + CNOT ring] × 2 layers   [variational, 16 quantum params]
-  → [⟨Z₀⟩, ⟨Z₁⟩, ⟨Z₂⟩, ⟨Z₃⟩]   [4 PauliZ expectations]
-  → Linear(4, 10)        [post layer, 50 params]
+  → RY(xᵢ) for i=0..7   [angle encoding]
+  → [RY(θ) + RZ(θ) + CNOT ring] × 4 layers   [variational, 64 quantum params]
+  → [⟨Z₀⟩, …, ⟨Z₇⟩]   [8 PauliZ expectations]
+  → Linear(8, 10)        [post layer, 90 params]
   → logits
 ```
 
-Head 參數：1,028 + 16 + 50 = **1,094**。總參數 **57,414**。
+Head 參數：2,056 + 64 + 90 = **2,210**。總參數 **58,530**。
+
+Hilbert space 維度：2⁸ = **256 維**（是前一版 4q 的 16 倍）。
+
+**批次平行化（vmap）**：利用 `torch.func.vmap` 將 QNode 展開為 batch-parallel 呼叫，消除了每個樣本須串行執行 QNode 的瓶頸。每個 batch 從 64 次 sequential QNode 呼叫降為 1 次 vmapped 呼叫，每 epoch 從 ~900 秒降至 ~33 秒（QNN 部分）。
 
 ---
 
@@ -56,74 +60,58 @@ Head 參數：1,028 + 16 + 50 = **1,094**。總參數 **57,414**。
 
 | 模型 | 最佳 Test Acc | 可訓練參數 | 訓練時間 |
 |------|-------------|----------|---------|
-| CNN + MLP | **76.81%** | 58,890 | 59 s |
-| CNN + QNN | 61.07% | 57,414 | 18,250 s（≈5.1h） |
+| CNN + MLP | **76.46%** | 58,890 | 65.5 s |
+| CNN + QNN（8q×4l + vmap） | **73.70%** | 58,530 | 658.7 s |
 
-QNN 每 epoch 耗時約 912 秒，是 MLP（≈3 s/epoch）的 **311 倍**。根本原因是量子電路模擬器無法 batch 平行，每個樣本必須串行執行 QNode，即使使用 GPU（lightning.gpu）也是如此，因為 PennyLane 的 autograd 不支援 vmap over quantum circuits。
+兩者差距縮小至 **2.76 個百分點**，而訓練時間比約 **10×**（相較於舊版 4q×2l 的 311×）。
 
 ### 訓練曲線趨勢
 
 | Epoch | MLP test | QNN test |
 |-------|---------|---------|
-| 1 | 52.95% | 28.19% |
-| 5 | 68.26% | **45.24%**（大幅跳躍） |
-| 10 | 73.13% | 55.60% |
-| 15 | 75.89% | 59.80% |
-| 20 | 76.81% | 61.07% |
+| 1 | 52.29% | 44.51% |
+| 5 | 68.58% | 62.14% |
+| 10 | 73.22% | 69.61% |
+| 15 | 75.94% | 72.28% |
+| 20 | 76.41% | 73.70% |
 
-- **MLP** 從第一 epoch 就學得很好（52.95%），收斂平滑，第 15 epoch 後幾乎飽和。
-- **QNN** 前 4 個 epoch 表現非常差（28%→36%），epoch 5 出現明顯跳躍（45%），此後持續緩慢爬升。第 20 epoch 仍未完全收斂（epoch 19 train=60.3%、epoch 20 train=60.7%），顯示可能還有上升空間但已趨於平緩。
-
-QNN 前期的低迷可能反映了量子電路的 **barren plateau** 現象：隨機初始化的 PQC 梯度在高維 Hilbert space 中指數衰減，導致訓練初期幾乎無法學習，直到梯度找到有效方向才突破。
+- **MLP** 從第一 epoch 就穩定學習（52.3%），第 15 epoch 後趨於飽和。
+- **QNN** 的起點大幅提升（44.5% vs 舊版 28.2%），前期不再有明顯的 barren plateau 現象，可能因為 8q 的梯度空間更豐富，更容易找到初始有效方向。整體收斂趨勢與 MLP 相近，但始終落後約 2–3 個百分點，且在 epoch 20 仍有輕微上升的跡象。
 
 ### 混淆矩陣分析（Epoch 20）
 
-**MLP 各類別 accuracy：**
+| 類別 | MLP Acc | QNN Acc | 差距 |
+|------|---------|---------|------|
+| airplane | 78.3% | 77.0% | −1.3% |
+| automobile | 87.8% | 88.1% | **+0.3%** |
+| bird | 65.5% | 62.9% | −2.6% |
+| cat | 57.5% | 41.8% | −15.7% |
+| deer | 74.5% | 73.5% | −1.0% |
+| dog | 66.9% | 69.4% | **+2.5%** |
+| frog | 83.8% | 82.0% | −1.8% |
+| horse | 77.1% | 75.3% | −1.8% |
+| ship | 87.6% | 85.6% | −2.0% |
+| truck | 85.1% | 81.4% | −3.7% |
 
-| 類別 | Acc | 主要誤分 |
-|------|-----|---------|
-| airplane | 78.7% | ship |
-| automobile | 86.9% | — |
-| bird | **64.9%** | cat, deer |
-| cat | **58.0%** | dog, deer |
-| deer | 75.5% | horse |
-| dog | 69.3% | cat |
-| frog | 85.8% | — |
-| horse | 75.4% | deer |
-| ship | 89.1% | — |
-| truck | 85.0% | automobile |
+8q 電路的最大改善體現在 **cat**：從舊版 4q 的 13.5% 躍升至 41.8%，以及 **bird** 從 28.2% 到 62.9%。256 維的 Hilbert space 顯然提供了足夠的容量讓 QNN 學到更細緻的視覺邊界。唯一仍明顯落後的是 cat（−15.7%），這也是 MLP 自身最難的類別（57.5%），顯示殘差更多來自 CIFAR-10 的固有難度，而非電路容量的硬限制。
 
-**QNN 各類別 accuracy：**
+### 訓練 vs 測試準確率
 
-| 類別 | Acc | 主要誤分 |
-|------|-----|---------|
-| airplane | 64.5% | ship |
-| automobile | 77.0% | truck |
-| bird | **28.2%** | deer, frog |
-| cat | **13.5%** | dog（嚴重崩潰） |
-| deer | 50.3% | horse |
-| dog | 69.3% | cat |
-| frog | 79.3% | — |
-| horse | 74.3% | deer |
-| ship | 73.8% | airplane |
-| truck | 80.4% | automobile |
+| Epoch 20 | Train | Test |
+|---------|-------|------|
+| MLP | 75.36% | 76.41% |
+| QNN | 73.55% | 73.70% |
 
-QNN 在視覺上相似的細粒度類別（bird、cat）表現嚴重崩潰。**Cat 僅達 13.5%**，主要被誤分為 dog，顯示 4 維的量子特徵空間根本無法區分這些需要高維特徵才能辨識的類別。相比之下，視覺特徵較鮮明的類別（frog、truck）QNN 表現還不錯（79%、80%）。
-
-### 訓練 vs 測試準確率差距
-
-QNN 的 train-test gap 幾乎為零（epoch 20：train 60.72%、test 61.07%），甚至 test 略高於 train。這意味著 QNN 完全沒有過擬合，反而是 **欠擬合**——電路表達能力不足以擬合訓練資料。4 個 qubit 限制了 QNN 的容量，Hilbert space 只有 2⁴ = 16 維。
-
-MLP 也沒有明顯過擬合（epoch 20：train 75.17%、test 76.81%），因為 head 本身非常簡單（僅 2,570 params），主要容量來自共用的 backbone。
+兩個模型的 train-test gap 都極小，顯示都在欠擬合狀態而非過擬合。QNN 的容量雖然大幅提升，但 backbone 提取的特徵表示才是最終精度的天花板。
 
 ---
 
 ## 結論
 
-在這個 unfrozen backbone、相近總參數量的設定下，QNN (4q×2l) 比 MLP 低 **15.74 個百分點**，且慢 311 倍。差距主要來自：
+透過兩個核心改進——**擴大電路規模（4q×2l → 8q×4l）** 與 **引入 vmap 批次平行化**——QNN 的測試準確率從 61.07% 提升至 **73.70%**，與 MLP（76.46%）的差距從 15.74% 縮小至 **2.76%**，同時訓練時間從 18,250 秒壓縮至 **658 秒**。
 
-1. **特徵空間維度**：4-qubit QNN 只能在 4 維中處理 256-D 特徵，而 MLP 直接用 256-D 接 10-D；量子態的 16 維 Hilbert space 不足以表示複雜的視覺語義邊界。
-2. **訓練動態**：QNN 前期 barren plateau 造成學習緩慢，同樣的 epoch 數下 QNN 還未收斂至最佳點。
-3. **計算成本**：311× 的訓練時間差距讓 QNN 在相同運算預算下能跑的 epoch 數遠少於 MLP。
+這個結果說明：量子分類頭在足夠的電路深度與有效的批次平行化支援下，能夠在準確率上逼近同等參數量的古典線性頭。當前的差距主要來自：
 
-量子優勢在目前的嘈雜中等規模量子（NISQ）設備和模擬器上，對於經典機器視覺任務並不存在。
+1. **仍在收斂中**：QNN epoch 20 的訓練曲線斜率尚未歸零，更多 epoch 可能進一步縮小差距。
+2. **貓咪困境**：cat 類別本身在 CIFAR-10 上就困難（MLP 也只有 57.5%），需要更強的 backbone 而非更大的頭部。
+3. **CPU 模擬瓶頸**：vmap 解決了 sequential 問題，但 `default.qubit` 是純 CPU 模擬；若有原生支援 vmap 的 GPU 後端，訓練速度將再次大幅提升。

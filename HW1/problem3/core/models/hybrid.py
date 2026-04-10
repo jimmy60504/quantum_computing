@@ -6,6 +6,7 @@ import numpy as np
 import pennylane as qml
 import torch
 import torch.nn as nn
+from torch.func import vmap
 
 from .backbone import SimpleCNNBackbone
 
@@ -72,11 +73,12 @@ class QuantumHead(nn.Module):
         """features: (batch, feature_dim) → logits: (batch, 10)."""
         x = self.pre(features)  # (batch, num_qubits)
         x = torch.tanh(x) * np.pi  # scale to [-pi, pi] for angle encoding
-        # Loop over batch — vmap has compatibility issues with multi-qubit return
-        expectations = torch.stack([
-            torch.stack(self._circuit(x[i], self.weights))
-            for i in range(x.shape[0])
-        ]).to(torch.float32)  # PennyLane returns float64; cast for nn.Linear
+
+        def circuit_fn(inp, w):
+            return torch.stack(self._circuit(inp, w)).float()
+
+        batched = vmap(circuit_fn, in_dims=(0, None), randomness="same")
+        expectations = batched(x, self.weights)  # (batch, num_qubits)
         return self.post(expectations)
 
 

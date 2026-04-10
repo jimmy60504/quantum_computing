@@ -237,8 +237,8 @@ export function renderTsneChart(container, methodData, samples, stepIndex, metho
             name,
             marker: {
                 color: TSNE_CLASS_COLORS[classIdx],
-                size: 7,
-                opacity: 0.85,
+                size: 3,
+                opacity: 0.6,
                 line: { width: 0 },
             },
             hoverinfo: "none",   // we handle hover ourselves
