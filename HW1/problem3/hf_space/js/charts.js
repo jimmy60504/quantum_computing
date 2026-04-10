@@ -27,15 +27,25 @@ export function renderTrainingCurves(epochSteps, curEpochFrac, stepAccData) {
     const epochs = epochSteps.map((s) => s.epoch ?? s.global_step ?? 0);
     const traces = [];
 
-    // Train acc — epoch-level, dotted + semi-transparent
+    // Train acc — 400-pt when available, else epoch-level dotted
     for (const [method, color] of [["mlp", MLP_COLOR], ["qnn", QNN_COLOR]]) {
-        const y = epochSteps.map((s) => s[`${method}_train_acc`] ?? null);
-        if (y.some((v) => v !== null))
+        const sd = stepAccData?.[method];
+        if (sd?.trainAccs?.length) {
             traces.push({
-                x: epochs, y,
+                x: sd.steps.map((s) => s / BATCHES_PER_EPOCH),
+                y: sd.trainAccs,
                 name: `${method.toUpperCase()} train`, mode: "lines",
-                line: { color, width: 1.5, dash: "dot" }, opacity: 0.5,
+                line: { color, width: 1.5, dash: "dot" }, opacity: 0.6,
             });
+        } else {
+            const y = epochSteps.map((s) => s[`${method}_train_acc`] ?? null);
+            if (y.some((v) => v !== null))
+                traces.push({
+                    x: epochs, y,
+                    name: `${method.toUpperCase()} train`, mode: "lines",
+                    line: { color, width: 1.5, dash: "dot" }, opacity: 0.5,
+                });
+        }
     }
 
     // Test acc — 400-pt checkpoint-level when available, else epoch-level
@@ -266,7 +276,7 @@ export function renderTsneChart(container, methodData, samples, stepIndex, metho
     }
 
     const layout = {
-        margin: { t: 36, b: 8, l: 8, r: 8 },
+        margin: { t: 22, b: 2, l: 8, r: 110 },
         title: {
             text: `Step ${step}${accStr} &nbsp;(${reductionLabel})`,
             font: { size: 11, color: "#555" },
@@ -280,12 +290,19 @@ export function renderTsneChart(container, methodData, samples, stepIndex, metho
         xaxis: { visible: false },
         yaxis: { visible: false, scaleanchor: "x" },
         legend: {
-            orientation: "h",
-            y: -0.02,
-            x: 0.5,
-            xanchor: "center",
-            font: { size: 9 },
+            orientation: "v",
+            x: 1.01,
+            xanchor: "left",
+            y: 1,
+            yanchor: "top",
+            font: { size: 7.5 },
             itemsizing: "constant",
+            itemwidth: 18,
+            tracegroupgap: 0,
+            entrywidth: 60,
+            entrywidthmode: "pixels",
+            bgcolor: "rgba(255,255,255,0)",
+            borderwidth: 0,
         },
         font: { family: "IBM Plex Sans, sans-serif", size: 10 },
     };

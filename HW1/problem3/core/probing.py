@@ -253,6 +253,31 @@ def _select_tsne_samples(
     return samples
 
 
+def _select_train_samples(
+    data_dir: str | Path,
+    n_per_class: int,
+) -> tuple[torch.Tensor, list[int]]:
+    """Load n_per_class samples per class from training set (no images needed)."""
+    raw_ds = datasets.CIFAR10(
+        root=str(data_dir), train=True, download=True, transform=None,
+    )
+    train_transform = get_transforms(train=False)  # eval normalisation, no augment
+
+    counts: dict[int, int] = {}
+    tensors: list[torch.Tensor] = []
+    labels: list[int] = []
+    for idx in range(len(raw_ds)):
+        pil_img, label = raw_ds[idx]
+        if counts.get(label, 0) >= n_per_class:
+            continue
+        counts[label] = counts.get(label, 0) + 1
+        tensors.append(train_transform(pil_img))
+        labels.append(label)
+        if len(tensors) == n_per_class * len(CLASS_NAMES):
+            break
+    return torch.stack(tensors), labels
+
+
 def _extract_backbone_features(
     model: torch.nn.Module,
     sample_batch: torch.Tensor,
@@ -393,6 +418,10 @@ def probe_tsne(
 
     sample_batch = torch.stack([s["image_tensor"] for s in samples])
 
+    # Training samples for per-checkpoint train accuracy (same n_per_class)
+    train_batch, train_labels = _select_train_samples(data_dir, n_per_class)
+    print(f"[tsne] {len(train_labels)} train samples for train-acc curve")
+
     ckpt_dir = run_dir / "checkpoints"
     if not ckpt_dir.exists():
         raise FileNotFoundError(f"No checkpoints directory: {ckpt_dir}")
@@ -436,6 +465,7 @@ def probe_tsne(
         # into 10 class-aligned clusters ("blob → clusters" animation).
         probs_list: list[np.ndarray] = []   # each: [N, 10]
         preds_per_step: list[list[int]] = []
+        train_preds_per_step: list[list[int]] = []
         t0 = time.time()
         for i, (step, ckpt_path) in enumerate(selected_ckpts):
             state_dict = torch.load(ckpt_path, map_location=device, weights_only=True)
@@ -443,9 +473,12 @@ def probe_tsne(
             with torch.no_grad():
                 logits = model(sample_batch.to(device))
                 probs = F.softmax(logits, dim=1).cpu()
+                train_logits = model(train_batch.to(device))
+                train_preds = train_logits.argmax(dim=1).cpu().tolist()
             probs_np = probs.numpy()                              # [N, 10]
             probs_list.append(probs_np)
             preds_per_step.append(probs.argmax(dim=1).tolist())  # [N] ints
+            train_preds_per_step.append(train_preds)
             if (i + 1) % 10 == 0 or i == n_sel - 1:
                 print(f"[tsne] {method}: {i+1}/{n_sel} checkpoints loaded")
 
@@ -478,7 +511,8 @@ def probe_tsne(
             "steps": selected_steps,
             "coords": coords_per_step,
             "preds": preds_per_step,
-            "class_centroids": class_centroids,   # fixed markers for the viewer
+            "train_preds": train_preds_per_step,
+            "class_centroids": class_centroids,
         }
 
     artifact = {
@@ -487,6 +521,7 @@ def probe_tsne(
              "class_name": s["class_name"], "image_base64": s["image_base64"]}
             for s in samples
         ],
+        "train_labels": train_labels,
         "n_per_class": n_per_class,
         "methods": all_method_data,
     }

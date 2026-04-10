@@ -59,7 +59,7 @@
 .panel-header,
 .section-heading {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 16px;
 }
@@ -210,17 +210,26 @@ input[type="range"] {
 .timeline-title-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: nowrap;
     min-width: 0;
+    width: 100%;
+}
+
+.timeline-title-row h2 {
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.timeline-title-pill {
+    flex: 0 0 auto;
 }
 
 .timeline-slider-inline {
     display: flex;
     align-items: center;
-    flex: 0 0 200px;
-    min-width: 160px;
-    max-width: 200px;
+    flex: 1 1 160px;
+    min-width: 120px;
 }
 
 .timeline-slider-inline input[type="range"] {
@@ -238,6 +247,7 @@ input[type="range"] {
     color: var(--brand);
     font-size: 0.85rem;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .timeline-metrics-row {

@@ -49,15 +49,20 @@ function renderComparisonTable(summary) {
 
 function computeStepAccData(tsneData) {
     if (!tsneData?.methods || !tsneData?.samples) return null;
-    const trueLabels = tsneData.samples.map((s) => s.class_idx);
+    const testLabels  = tsneData.samples.map((s) => s.class_idx);
+    const trainLabels = tsneData.train_labels ?? null;
     const result = {};
     for (const [method, md] of Object.entries(tsneData.methods)) {
         if (!md.preds?.length) continue;
-        const steps = md.steps ?? md.preds.map((_, i) => i);
-        const accs  = md.preds.map((framePreds) =>
-            framePreds.filter((p, i) => p === trueLabels[i]).length / framePreds.length
+        const steps     = md.steps ?? md.preds.map((_, i) => i);
+        const testAccs  = md.preds.map((fp) =>
+            fp.filter((p, i) => p === testLabels[i]).length / fp.length
         );
-        result[method] = { steps, accs };
+        const trainAccs = (trainLabels && md.train_preds?.length)
+            ? md.train_preds.map((fp) =>
+                fp.filter((p, i) => p === trainLabels[i]).length / fp.length)
+            : null;
+        result[method] = { steps, accs: testAccs, trainAccs };
     }
     return Object.keys(result).length ? result : null;
 }
@@ -124,9 +129,19 @@ function refreshAtFrame(frameIdx) {
         }
     }
 
-    // Confusion matrices (nearest epoch)
+    // Confusion matrices — 400-pt from checkpoint preds when available, else nearest epoch
     for (const method of METHODS) {
-        renderConfusionMatrix(cmPlots[method], epochRecord?.[`${method}_confusion`] ?? null, method);
+        const methodData = tsneData?.methods?.[method];
+        const framePreds = methodData?.preds?.[frameIdx];
+        if (framePreds && tsneData?.samples) {
+            const labels = tsneData.samples.map((s) => s.class_idx);
+            const n = 10;
+            const cm = Array.from({ length: n }, () => Array(n).fill(0));
+            framePreds.forEach((pred, i) => { if (pred >= 0 && pred < n) cm[labels[i]][pred]++; });
+            renderConfusionMatrix(cmPlots[method], cm, method);
+        } else {
+            renderConfusionMatrix(cmPlots[method], epochRecord?.[`${method}_confusion`] ?? null, method);
+        }
     }
 
     state.activeTsneStep = frameIdx;
@@ -151,12 +166,9 @@ function initTsneSection(data) {
     const playBtn = document.getElementById("tsne-play");
 
     if (!tsneData?.methods || !tsneSection) {
-        if (tsneSection) tsneSection.hidden = true;
         if (playBtn) playBtn.style.display = "none";
         return;
     }
-
-    tsneSection.hidden = false;
     if (playBtn) playBtn.style.display = "";
 
     const firstKey   = Object.keys(tsneData.methods)[0];

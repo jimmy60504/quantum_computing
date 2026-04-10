@@ -17,13 +17,7 @@
     min-height: 480px;
 }
 
-/* confusion matrices — slightly shorter */
-.content-pane > .canvas-card:nth-child(2) {
-    flex: 0.9 1 0;
-    min-height: 260px;
-}
-
-/* training curves — slightly taller for the chart */
+/* training curves */
 .content-pane > .canvas-card:last-child {
     flex: 1.1 1 0;
     min-height: 0;
@@ -96,7 +90,7 @@
 
 .confusion-plot {
     flex: 1 1 auto;
-    min-height: 240px;
+    min-height: 0;
     width: 100%;
     overflow: hidden;
 }
@@ -152,14 +146,37 @@
     display: none !important;
 }
 
-/* ── t-SNE section ─────────────────────────────────────────────────── */
+/* ── t-SNE + confusion combined section ────────────────────────────── */
 
 #tsne-section {
-    flex: 1.4 1 0;
-    min-height: 400px;
+    flex: 2.2 1 0;
+    min-height: 500px;
 }
 
-/* heading: title left, controls right — all in one row */
+/* scatter and CM roughly equal, scatter slightly larger */
+.tsne-grid {
+    flex: 1.1 1 0;
+    min-height: 160px;
+}
+
+.cm-sub-heading {
+    flex: 0 0 auto;
+    padding: 6px 2px 2px;
+}
+
+.cm-sub-heading h3 {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.cm-grid {
+    flex: 1 1 0;
+    min-height: 0;
+    margin-top: 6px;
+}
+
+/* heading: title left, step label right */
 .tsne-heading {
     display: flex;
     align-items: center;
@@ -173,14 +190,15 @@
     white-space: nowrap;
 }
 
-.tsne-controls-inline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1 1 auto;
-    min-width: 0;
+.tsne-step-label {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    color: var(--muted, #888);
+    min-width: 5em;
+    text-align: right;
 }
 
+/* Play button — used in training curves heading */
 .tsne-play-btn {
     flex: 0 0 auto;
     height: 28px;
@@ -197,21 +215,6 @@
 
 .tsne-play-btn:hover {
     background: rgba(255, 255, 255, 0.95);
-}
-
-.tsne-step-slider {
-    flex: 1 1 auto;
-    accent-color: var(--brand, #0d8f71);
-    min-width: 0;
-    margin: 0;
-}
-
-.tsne-step-label {
-    flex: 0 0 auto;
-    font-size: 0.78rem;
-    color: var(--muted, #888);
-    min-width: 5em;
-    text-align: right;
 }
 
 /* ── responsive ────────────────────────────────────────────────────── */
@@ -238,14 +241,6 @@
 
     #probe-section {
         min-height: 520px;
-    }
-
-    .content-pane > .canvas-card:nth-child(2) {
-        flex: none;
-    }
-
-    .tsne-controls-inline {
-        flex-wrap: wrap;
     }
 
     .confusion-grid {

@@ -12,10 +12,10 @@
     rel="stylesheet" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="css/base.css" />
-  <link rel="stylesheet" href="css/components.css" />
-  <link rel="stylesheet" href="css/overlays.css" />
-  <link rel="stylesheet" href="css/charts.css" />
+  <link rel="stylesheet" href="css/base.css?v=2" />
+  <link rel="stylesheet" href="css/components.css?v=2" />
+  <link rel="stylesheet" href="css/overlays.css?v=2" />
+  <link rel="stylesheet" href="css/charts.css?v=2" />
 </head>
 
 <body>
@@ -102,16 +102,13 @@
     <!-- ── main pane ──────────────────────────────────────────────────── -->
     <main class="content-pane">
 
-      <!-- feature space evolution (t-SNE) -->
-      <section id="tsne-section" class="canvas-card" hidden>
+      <!-- feature space evolution + confusion matrices (merged) -->
+      <section id="tsne-section" class="canvas-card">
         <div class="section-heading tsne-heading">
           <h2>Feature Space Evolution</h2>
-          <div class="tsne-controls-inline">
-            <button id="tsne-play" class="tsne-play-btn" type="button">▶ Play</button>
-            <span id="tsne-step-label" class="tsne-step-label">—</span>
-          </div>
+          <span id="tsne-step-label" class="tsne-step-label">—</span>
         </div>
-        <div class="confusion-grid">
+        <div class="confusion-grid tsne-grid">
           <article class="confusion-card">
             <div class="confusion-header">
               <span class="confusion-method-tag tag-mlp">MLP</span>
@@ -127,14 +124,10 @@
             <div id="tsne-qnn" class="confusion-plot"></div>
           </article>
         </div>
-      </section>
-
-      <!-- confusion matrices -->
-      <section class="canvas-card">
-        <div class="section-heading">
-          <h2>Confusion Matrices</h2>
+        <div class="cm-sub-heading">
+          <h3>Confusion Matrices</h3>
         </div>
-        <div class="confusion-grid">
+        <div class="confusion-grid cm-grid">
           <article class="confusion-card">
             <div class="confusion-header">
               <span class="confusion-method-tag tag-mlp">MLP</span>
@@ -158,6 +151,7 @@
           <div class="timeline-title-row">
             <h2>Training Curves</h2>
             <span id="current-step-label" class="timeline-title-pill">—</span>
+            <button id="tsne-play" class="tsne-play-btn" type="button">▶ Play</button>
             <div class="timeline-slider-inline">
               <input id="step-slider" type="range" min="0" max="0" value="0" disabled />
             </div>
