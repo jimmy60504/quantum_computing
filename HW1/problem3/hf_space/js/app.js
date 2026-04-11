@@ -129,19 +129,9 @@ function refreshAtFrame(frameIdx) {
         }
     }
 
-    // Confusion matrices — 400-pt from checkpoint preds when available, else nearest epoch
+    // Confusion matrices — always use full 10k test set from nearest epoch history
     for (const method of METHODS) {
-        const methodData = tsneData?.methods?.[method];
-        const framePreds = methodData?.preds?.[frameIdx];
-        if (framePreds && tsneData?.samples) {
-            const labels = tsneData.samples.map((s) => s.class_idx);
-            const n = 10;
-            const cm = Array.from({ length: n }, () => Array(n).fill(0));
-            framePreds.forEach((pred, i) => { if (pred >= 0 && pred < n) cm[labels[i]][pred]++; });
-            renderConfusionMatrix(cmPlots[method], cm, method);
-        } else {
-            renderConfusionMatrix(cmPlots[method], epochRecord?.[`${method}_confusion`] ?? null, method);
-        }
+        renderConfusionMatrix(cmPlots[method], epochRecord?.[`${method}_confusion`] ?? null, method);
     }
 
     state.activeTsneStep = frameIdx;
