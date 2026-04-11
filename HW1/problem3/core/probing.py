@@ -355,6 +355,59 @@ def _simplex_project(probs_list: list[np.ndarray]) -> list[list[list[float]]]:
     ]
 
 
+def _compute_cm_and_centroids(
+    model: torch.nn.Module,
+    data_dir: str | Path,
+    device: torch.device,
+    n_classes: int,
+    batch_size: int = 512,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run full test set through model once; return (cm [C,C], centroids [C,2])."""
+    import torchvision
+    test_ds = torchvision.datasets.CIFAR10(
+        root=str(data_dir), train=False, download=True,
+        transform=get_transforms(train=False),
+    )
+    loader = torch.utils.data.DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    anchors = torch.tensor(_make_anchors(n_classes), dtype=torch.float32, device=device)
+
+    cm      = np.zeros((n_classes, n_classes), dtype=np.int32)
+    sum_2d  = torch.zeros(n_classes, 2, device=device)
+    counts  = torch.zeros(n_classes, device=device)
+
+    model.eval()
+    with torch.no_grad():
+        for images, labels in loader:
+            images, labels = images.to(device), labels.to(device)
+            probs  = torch.softmax(model(images), dim=1)   # [B, C]
+            coords = probs @ anchors                        # [B, 2]
+            preds  = probs.argmax(dim=1).cpu().numpy()
+            sum_2d.index_add_(0, labels, coords)
+            counts.index_add_(0, labels, torch.ones(len(labels), device=device))
+            for t, p in zip(labels.cpu().numpy(), preds):
+                cm[t, p] += 1
+
+    centroids = (sum_2d / counts.unsqueeze(1)).cpu().numpy()
+    return cm, centroids
+
+
+def _compute_confusion_matrix(
+    model: torch.nn.Module,
+    test_loader: torch.utils.data.DataLoader,
+    device: torch.device,
+    n_classes: int,
+) -> np.ndarray:
+    """Run a pre-built DataLoader through model; return [C, C] int32 CM."""
+    cm = np.zeros((n_classes, n_classes), dtype=np.int32)
+    model.eval()
+    with torch.no_grad():
+        for images, labels in test_loader:
+            preds = model(images.to(device)).argmax(dim=1).cpu().numpy()
+            for t, p in zip(labels.numpy(), preds):
+                cm[t, p] += 1
+    return cm
+
+
 def _compute_class_centroids(
     model: torch.nn.Module,
     data_dir: str | Path,
@@ -455,21 +508,39 @@ def probe_tsne(
         model = _build_model(method, config).to(device)
         model.eval()
 
-        # ── Collect scatter probs at selected checkpoints ─────────────────────
-        probs_list: list[np.ndarray] = []   # each: [N, 10]
+        # Build a shared DataLoader for the 10k test set (CM only — not scatter)
+        import torchvision
+        test_ds = torchvision.datasets.CIFAR10(
+            root=str(data_dir), train=False, download=True,
+            transform=get_transforms(train=False),
+        )
+        test_loader = torch.utils.data.DataLoader(
+            test_ds, batch_size=512, shuffle=False, num_workers=0,
+        )
+
+        # ── Per-checkpoint: scatter probs (1000) + full-test CM (10k) ─────────
+        probs_list: list[np.ndarray] = []
         preds_per_step: list[list[int]] = []
+        cms_per_step: list[list[list[int]]] = []
+        n_classes = len(CLASS_NAMES)
         t0 = time.time()
         for i, (step, ckpt_path) in enumerate(selected_ckpts):
             state_dict = torch.load(ckpt_path, map_location=device, weights_only=True)
             model.load_state_dict(state_dict)
+
+            # scatter (1000 samples)
             with torch.no_grad():
                 logits = model(sample_batch.to(device))
                 probs = F.softmax(logits, dim=1).cpu()
-            probs_np = probs.numpy()                              # [N, 10]
-            probs_list.append(probs_np)
-            preds_per_step.append(probs.argmax(dim=1).tolist())  # [N] ints
-            if (i + 1) % 40 == 0 or i == n_sel - 1:
-                print(f"[tsne] {method}: {i+1}/{n_sel} checkpoints loaded")
+            probs_list.append(probs.numpy())
+            preds_per_step.append(probs.argmax(dim=1).tolist())
+
+            # confusion matrix (10k test set)
+            cm = _compute_confusion_matrix(model, test_loader, device, n_classes)
+            cms_per_step.append(cm.tolist())
+
+            if (i + 1) % 20 == 0 or i == n_sel - 1:
+                print(f"[tsne] {method}: {i+1}/{n_sel} checkpoints done")
 
         print(f"[tsne] {method}: forward passes in {time.time()-t0:.1f}s")
 
@@ -478,12 +549,9 @@ def probe_tsne(
         coords_per_step = _simplex_project(probs_list)
         print(f"[tsne] {method}: simplex projection in {time.time()-t1:.1f}s")
 
-        # ── Class centroids from full test set at final checkpoint ────────────
-        # Load final checkpoint again, run all 10k test images, average per class.
+        # ── Class centroids: reuse last CM's per-class predictions ───────────
         print(f"[tsne] {method}: computing class centroids on full test set...")
-        last_ckpt = selected_ckpts[-1][1]
-        model.load_state_dict(torch.load(last_ckpt, map_location=device, weights_only=True))
-        centroids_2d = _compute_class_centroids(model, data_dir, device, len(CLASS_NAMES))
+        centroids_2d = _compute_class_centroids(model, data_dir, device, n_classes)
         class_centroids = [
             {
                 "class_idx": i,
@@ -491,7 +559,7 @@ def probe_tsne(
                 "x": round(float(centroids_2d[i, 0]), 4),
                 "y": round(float(centroids_2d[i, 1]), 4),
             }
-            for i in range(len(CLASS_NAMES))
+            for i in range(n_classes)
         ]
         print(f"[tsne] {method}: centroids done")
 
@@ -500,6 +568,7 @@ def probe_tsne(
             "steps": selected_steps,
             "coords": coords_per_step,
             "preds": preds_per_step,
+            "confusion_matrices": cms_per_step,
             "class_centroids": class_centroids,
         }
 

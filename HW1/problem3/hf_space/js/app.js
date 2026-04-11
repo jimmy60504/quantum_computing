@@ -137,9 +137,12 @@ function refreshAtFrame(frameIdx) {
         }
     }
 
-    // Confusion matrices — always use full 10k test set from nearest epoch history
+    // Confusion matrices — 10k-based per-frame CM from tsne artifact (400 frames),
+    // fall back to epoch history if not yet loaded
     for (const method of METHODS) {
-        renderConfusionMatrix(cmPlots[method], epochRecord?.[`${method}_confusion`] ?? null, method);
+        const perFrameCm = tsneData?.methods?.[method]?.confusion_matrices?.[frameIdx] ?? null;
+        const epochCm    = epochRecord?.[`${method}_confusion`] ?? null;
+        renderConfusionMatrix(cmPlots[method], perFrameCm ?? epochCm, method);
     }
 
     state.activeTsneStep = frameIdx;
