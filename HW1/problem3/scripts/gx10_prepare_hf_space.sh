@@ -18,6 +18,7 @@ if [[ -d "${RUNTIME_DIR}" ]]; then
   mkdir -p "${OUTPUT_DIR}/runtime"
   rsync -av \
     --exclude 'logs/' \
+    --exclude 'runs/*/checkpoints/' \
     "${RUNTIME_DIR}/" "${OUTPUT_DIR}/runtime/"
 fi
 
