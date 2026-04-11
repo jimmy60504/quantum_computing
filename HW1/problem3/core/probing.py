@@ -392,8 +392,8 @@ def _compute_class_centroids(
 def probe_tsne(
     config: Prob3Config,
     run_dir: Path,
-    n_per_class: int = 20,
-    n_steps: int = 50,
+    n_per_class: int = 100,
+    n_steps: int = 400,
     data_dir: str | Path = "./data/cifar10",
     methods: list[str] | None = None,
     reduction: str = "umap",
@@ -417,10 +417,6 @@ def probe_tsne(
     print(f"[tsne] {n_samples} samples ({n_per_class}/class × {len(CLASS_NAMES)} classes)")
 
     sample_batch = torch.stack([s["image_tensor"] for s in samples])
-
-    # Training samples for per-checkpoint train accuracy (same n_per_class)
-    train_batch, train_labels = _select_train_samples(data_dir, n_per_class)
-    print(f"[tsne] {len(train_labels)} train samples for train-acc curve")
 
     ckpt_dir = run_dir / "checkpoints"
     if not ckpt_dir.exists():
@@ -459,13 +455,9 @@ def probe_tsne(
         model = _build_model(method, config).to(device)
         model.eval()
 
-        # ── Collect softmax probabilities at every selected checkpoint ────────
-        # We use the MODEL OUTPUT (10-D prob vector) rather than backbone
-        # features so that early steps form one blob and later steps split
-        # into 10 class-aligned clusters ("blob → clusters" animation).
+        # ── Collect scatter probs at selected checkpoints ─────────────────────
         probs_list: list[np.ndarray] = []   # each: [N, 10]
         preds_per_step: list[list[int]] = []
-        train_preds_per_step: list[list[int]] = []
         t0 = time.time()
         for i, (step, ckpt_path) in enumerate(selected_ckpts):
             state_dict = torch.load(ckpt_path, map_location=device, weights_only=True)
@@ -473,13 +465,10 @@ def probe_tsne(
             with torch.no_grad():
                 logits = model(sample_batch.to(device))
                 probs = F.softmax(logits, dim=1).cpu()
-                train_logits = model(train_batch.to(device))
-                train_preds = train_logits.argmax(dim=1).cpu().tolist()
             probs_np = probs.numpy()                              # [N, 10]
             probs_list.append(probs_np)
             preds_per_step.append(probs.argmax(dim=1).tolist())  # [N] ints
-            train_preds_per_step.append(train_preds)
-            if (i + 1) % 10 == 0 or i == n_sel - 1:
+            if (i + 1) % 40 == 0 or i == n_sel - 1:
                 print(f"[tsne] {method}: {i+1}/{n_sel} checkpoints loaded")
 
         print(f"[tsne] {method}: forward passes in {time.time()-t0:.1f}s")
@@ -511,7 +500,6 @@ def probe_tsne(
             "steps": selected_steps,
             "coords": coords_per_step,
             "preds": preds_per_step,
-            "train_preds": train_preds_per_step,
             "class_centroids": class_centroids,
         }
 
@@ -521,7 +509,6 @@ def probe_tsne(
              "class_name": s["class_name"], "image_base64": s["image_base64"]}
             for s in samples
         ],
-        "train_labels": train_labels,
         "n_per_class": n_per_class,
         "methods": all_method_data,
     }

@@ -45,24 +45,32 @@ function renderComparisonTable(summary) {
     }
 }
 
-// ── step-level accuracy computed from tsne preds + true labels ───────────────
+// ── step-level accuracy interpolated from epoch history (10000-based) ────────
+
+function _interpEpochAcc(epochSteps, epochFrac, key) {
+    // epochSteps[i] = record for end of epoch (i+1); epochFrac is the epoch fraction
+    // e.g. epochFrac=1.0 → end of epoch 1 → epochSteps[0]
+    const epochIdx = epochFrac - 1;  // 0-based index into epochSteps
+    if (epochIdx <= 0) return epochSteps[0]?.[key] ?? 0;
+    if (epochIdx >= epochSteps.length - 1) return epochSteps[epochSteps.length - 1]?.[key] ?? 0;
+    const lo = Math.floor(epochIdx);
+    const t  = epochIdx - lo;
+    const a0 = epochSteps[lo]?.[key] ?? 0;
+    const a1 = epochSteps[lo + 1]?.[key] ?? 0;
+    return a0 + t * (a1 - a0);
+}
 
 function computeStepAccData(tsneData) {
-    if (!tsneData?.methods || !tsneData?.samples) return null;
-    const testLabels  = tsneData.samples.map((s) => s.class_idx);
-    const trainLabels = tsneData.train_labels ?? null;
+    if (!tsneData?.methods) return null;
+    const epochSteps = state.currentEpochSteps ?? [];
+    if (!epochSteps.length) return null;
     const result = {};
     for (const [method, md] of Object.entries(tsneData.methods)) {
-        if (!md.preds?.length) continue;
-        const steps     = md.steps ?? md.preds.map((_, i) => i);
-        const testAccs  = md.preds.map((fp) =>
-            fp.filter((p, i) => p === testLabels[i]).length / fp.length
-        );
-        const trainAccs = (trainLabels && md.train_preds?.length)
-            ? md.train_preds.map((fp) =>
-                fp.filter((p, i) => p === trainLabels[i]).length / fp.length)
-            : null;
-        result[method] = { steps, accs: testAccs, trainAccs };
+        if (!md.steps?.length) continue;
+        const steps     = md.steps;
+        const accs      = steps.map((s) => _interpEpochAcc(epochSteps, s / BATCHES_PER_EPOCH, `${method}_test_acc`));
+        const trainAccs = steps.map((s) => _interpEpochAcc(epochSteps, s / BATCHES_PER_EPOCH, `${method}_train_acc`));
+        result[method]  = { steps, accs, trainAccs };
     }
     return Object.keys(result).length ? result : null;
 }
