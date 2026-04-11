@@ -12,7 +12,7 @@ import { renderTrainingCurves, renderConfusionMatrix, renderTsneChart, renderEmp
 import {
     formatAcc, formatParams, formatTime, formatInteger,
     appendMetaRow, withCacheBust,
-    setLoadingState, loadManifest, loadRunData, loadRuntimeSource,
+    setLoadingState, loadManifest, loadRunData, loadRuntimeSource, loadTsneData,
 } from "./data.js";
 
 const METHODS = ["mlp", "qnn"];
@@ -153,9 +153,24 @@ function refreshAtFrame(frameIdx) {
 // ── animation (Play button in scatter heading) ────────────────────────────────
 
 let tsneAnimTimer = null;
+let tsneObserver  = null;
+
+async function lazyLoadTsne(data) {
+    if (state.currentTsneData || !data.tsne_path) return;
+    try {
+        const tsne = await loadTsneData(data.tsne_path);
+        state.stepAccData     = computeStepAccData(tsne);
+        state.currentTsneData = tsne;
+        initTsneSection({ ...data, tsne_probes: tsne });
+        const initFrame = stepSlider.disabled ? 0 : Number(stepSlider.value);
+        refreshAtFrame(initFrame);
+    } catch (e) {
+        console.warn("t-SNE lazy load failed:", e);
+    }
+}
 
 function initTsneSection(data) {
-    const tsneData = data.tsne_probes;
+    const tsneData = data.tsne_probes ?? state.currentTsneData;
 
     // Compute step-level accuracy from tsne preds
     state.stepAccData    = computeStepAccData(tsneData);
@@ -247,7 +262,19 @@ async function applyRun(runId) {
 
     renderComparisonTable(state.currentData.summary);
     populateExperimentMeta(state.currentData, selectedRun);
-    initTsneSection(state.currentData);
+
+    // Reset tsne state for new run
+    state.currentTsneData = null;
+    state.stepAccData = null;
+    if (tsneObserver) { tsneObserver.disconnect(); tsneObserver = null; }
+
+    if (state.currentData.tsne_probes) {
+        // Embedded (old format) — load immediately
+        initTsneSection(state.currentData);
+    } else if (state.currentData.tsne_path) {
+        // Lazy-load tsne after main render completes
+        lazyLoadTsne(state.currentData);
+    }
 
     // Epoch-only fallback: step-slider covers epochs
     if (!state.currentTsneData && epochSteps.length > 1) {

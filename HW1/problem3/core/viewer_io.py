@@ -116,7 +116,7 @@ def write_viewer_export(
     export_path.parent.mkdir(parents=True, exist_ok=True)
     payload = build_viewer_payload(config, export_path, artifacts)
 
-    # Merge probe data if available
+    # Merge probe data if available — write tsne as a separate lazy-load file
     if run_dir is not None:
         tsne = _load_tsne_artifact(run_dir)
         if tsne:
@@ -124,13 +124,19 @@ def write_viewer_export(
             methods = tsne.get("methods", {})
             if "mlp_unf" in methods and "mlp" not in methods:
                 methods["mlp"] = methods.pop("mlp_unf")
-            payload["tsne_probes"] = tsne
+
+            tsne_path = export_path.with_suffix(".tsne.json")
+            tsne_path.write_text(json.dumps(tsne) + "\n")
+
+            # Main JSON only stores a pointer
+            payload["tsne_path"] = f"./runtime/{tsne_path.name}"
+
             n_frames = max(
                 (len(md.get("preds", md.get("coords", [])))
                  for md in tsne.get("methods", {}).values()),
                 default=0,
             )
-            print(f"Included t-SNE data: {len(tsne.get('samples', []))} samples, {n_frames} frames")
+            print(f"Included t-SNE data: {len(tsne.get('samples', []))} samples, {n_frames} frames → {tsne_path.name}")
 
     export_path.write_text(json.dumps(payload, indent=2) + "\n")
     return export_path
