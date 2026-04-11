@@ -508,8 +508,19 @@ def probe_tsne(
         model = _build_model(method, config).to(device)
         model.eval()
 
-        # Build a shared DataLoader for the 10k test set (CM only — not scatter)
+        # ── Cache backbone features once (backbone is frozen across checkpoints) ─
+        # Load any checkpoint to warm up the model, then extract features.
         import torchvision
+        print(f"[tsne] {method}: caching backbone features (frozen backbone)...")
+        t_cache = time.time()
+        init_ckpt = selected_ckpts[0][1]
+        model.load_state_dict(torch.load(init_ckpt, map_location=device, weights_only=True))
+
+        # Scatter features: backbone(1000 scatter samples) → [1000, feature_dim]
+        with torch.no_grad():
+            scatter_feats = model.backbone(sample_batch.to(device))  # [N, D]
+
+        # Test-set features: backbone(10k) → [10k, feature_dim] + true labels
         test_ds = torchvision.datasets.CIFAR10(
             root=str(data_dir), train=False, download=True,
             transform=get_transforms(train=False),
@@ -517,8 +528,18 @@ def probe_tsne(
         test_loader = torch.utils.data.DataLoader(
             test_ds, batch_size=512, shuffle=False, num_workers=0,
         )
+        test_feats_list: list[torch.Tensor] = []
+        test_labels_list: list[torch.Tensor] = []
+        with torch.no_grad():
+            for imgs, lbls in test_loader:
+                test_feats_list.append(model.backbone(imgs.to(device)))
+                test_labels_list.append(lbls)
+        test_feats  = torch.cat(test_feats_list, dim=0)   # [10k, D]
+        test_labels = torch.cat(test_labels_list).numpy()  # [10k]
+        print(f"[tsne] {method}: backbone cache done in {time.time()-t_cache:.1f}s  "
+              f"(scatter {scatter_feats.shape}, test {test_feats.shape})")
 
-        # ── Per-checkpoint: scatter probs (1000) + full-test CM (10k) ─────────
+        # ── Per-checkpoint: head only on cached features ──────────────────────
         probs_list: list[np.ndarray] = []
         preds_per_step: list[list[int]] = []
         cms_per_step: list[list[list[int]]] = []
@@ -528,18 +549,24 @@ def probe_tsne(
             state_dict = torch.load(ckpt_path, map_location=device, weights_only=True)
             model.load_state_dict(state_dict)
 
-            # scatter (1000 samples)
+            # scatter probs — head only on cached scatter features (1000 samples)
             with torch.no_grad():
-                logits = model(sample_batch.to(device))
-                probs = F.softmax(logits, dim=1).cpu()
+                probs = F.softmax(model.head(scatter_feats), dim=1).cpu()
             probs_list.append(probs.numpy())
             preds_per_step.append(probs.argmax(dim=1).tolist())
 
-            # confusion matrix (10k test set)
-            cm = _compute_confusion_matrix(model, test_loader, device, n_classes)
+            # confusion matrix — head only on cached test features (10k)
+            cm = np.zeros((n_classes, n_classes), dtype=np.int32)
+            batch_size = 512
+            with torch.no_grad():
+                for start in range(0, len(test_feats), batch_size):
+                    feats_b = test_feats[start:start + batch_size]
+                    preds_b = model.head(feats_b).argmax(dim=1).cpu().numpy()
+                    for t, p in zip(test_labels[start:start + batch_size], preds_b):
+                        cm[t, p] += 1
             cms_per_step.append(cm.tolist())
 
-            if (i + 1) % 20 == 0 or i == n_sel - 1:
+            if (i + 1) % 40 == 0 or i == n_sel - 1:
                 print(f"[tsne] {method}: {i+1}/{n_sel} checkpoints done")
 
         print(f"[tsne] {method}: forward passes in {time.time()-t0:.1f}s")
@@ -549,9 +576,21 @@ def probe_tsne(
         coords_per_step = _simplex_project(probs_list)
         print(f"[tsne] {method}: simplex projection in {time.time()-t1:.1f}s")
 
-        # ── Class centroids: reuse last CM's per-class predictions ───────────
-        print(f"[tsne] {method}: computing class centroids on full test set...")
-        centroids_2d = _compute_class_centroids(model, data_dir, device, n_classes)
+        # ── Class centroids: head on cached test features (final checkpoint) ───
+        print(f"[tsne] {method}: computing class centroids...")
+        anchors = torch.tensor(_make_anchors(n_classes), dtype=torch.float32, device=device)
+        sum_2d = torch.zeros(n_classes, 2, device=device)
+        counts = torch.zeros(n_classes, device=device)
+        labels_dev = torch.tensor(test_labels, dtype=torch.long, device=device)
+        with torch.no_grad():
+            for start in range(0, len(test_feats), 512):
+                feats_b  = test_feats[start:start + 512]
+                lbls_b   = labels_dev[start:start + 512]
+                probs_b  = torch.softmax(model.head(feats_b), dim=1)
+                coords_b = probs_b @ anchors
+                sum_2d.index_add_(0, lbls_b, coords_b)
+                counts.index_add_(0, lbls_b, torch.ones(len(lbls_b), device=device))
+        centroids_2d = (sum_2d / counts.unsqueeze(1)).cpu().numpy()
         class_centroids = [
             {
                 "class_idx": i,
