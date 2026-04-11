@@ -12,7 +12,7 @@ import { renderTrainingCurves, renderConfusionMatrix, renderTsneChart, renderEmp
 import {
     formatAcc, formatParams, formatTime, formatInteger,
     appendMetaRow, withCacheBust,
-    setLoadingState, loadManifest, loadRunData, loadRuntimeSource, loadTsneData,
+    setLoadingState, loadManifest, loadRunData, loadRuntimeSource,
 } from "./data.js";
 
 const METHODS = ["mlp", "qnn"];
@@ -45,32 +45,24 @@ function renderComparisonTable(summary) {
     }
 }
 
-// ── step-level accuracy interpolated from epoch history (10000-based) ────────
-
-function _interpEpochAcc(epochSteps, epochFrac, key) {
-    // epochSteps[i] = record for end of epoch (i+1); epochFrac is the epoch fraction
-    // e.g. epochFrac=1.0 → end of epoch 1 → epochSteps[0]
-    const epochIdx = epochFrac - 1;  // 0-based index into epochSteps
-    if (epochIdx <= 0) return epochSteps[0]?.[key] ?? 0;
-    if (epochIdx >= epochSteps.length - 1) return epochSteps[epochSteps.length - 1]?.[key] ?? 0;
-    const lo = Math.floor(epochIdx);
-    const t  = epochIdx - lo;
-    const a0 = epochSteps[lo]?.[key] ?? 0;
-    const a1 = epochSteps[lo + 1]?.[key] ?? 0;
-    return a0 + t * (a1 - a0);
-}
+// ── step-level accuracy computed from tsne preds + true labels ───────────────
 
 function computeStepAccData(tsneData) {
-    if (!tsneData?.methods) return null;
-    const epochSteps = state.currentEpochSteps ?? [];
-    if (!epochSteps.length) return null;
+    if (!tsneData?.methods || !tsneData?.samples) return null;
+    const testLabels  = tsneData.samples.map((s) => s.class_idx);
+    const trainLabels = tsneData.train_labels ?? null;
     const result = {};
     for (const [method, md] of Object.entries(tsneData.methods)) {
-        if (!md.steps?.length) continue;
-        const steps     = md.steps;
-        const accs      = steps.map((s) => _interpEpochAcc(epochSteps, s / BATCHES_PER_EPOCH, `${method}_test_acc`));
-        const trainAccs = steps.map((s) => _interpEpochAcc(epochSteps, s / BATCHES_PER_EPOCH, `${method}_train_acc`));
-        result[method]  = { steps, accs, trainAccs };
+        if (!md.preds?.length) continue;
+        const steps     = md.steps ?? md.preds.map((_, i) => i);
+        const testAccs  = md.preds.map((fp) =>
+            fp.filter((p, i) => p === testLabels[i]).length / fp.length
+        );
+        const trainAccs = (trainLabels && md.train_preds?.length)
+            ? md.train_preds.map((fp) =>
+                fp.filter((p, i) => p === trainLabels[i]).length / fp.length)
+            : null;
+        result[method] = { steps, accs: testAccs, trainAccs };
     }
     return Object.keys(result).length ? result : null;
 }
@@ -137,12 +129,19 @@ function refreshAtFrame(frameIdx) {
         }
     }
 
-    // Confusion matrices — 10k-based per-frame CM from tsne artifact (400 frames),
-    // fall back to epoch history if not yet loaded
+    // Confusion matrices — 400-pt from checkpoint preds when available, else nearest epoch
     for (const method of METHODS) {
-        const perFrameCm = tsneData?.methods?.[method]?.confusion_matrices?.[frameIdx] ?? null;
-        const epochCm    = epochRecord?.[`${method}_confusion`] ?? null;
-        renderConfusionMatrix(cmPlots[method], perFrameCm ?? epochCm, method);
+        const methodData = tsneData?.methods?.[method];
+        const framePreds = methodData?.preds?.[frameIdx];
+        if (framePreds && tsneData?.samples) {
+            const labels = tsneData.samples.map((s) => s.class_idx);
+            const n = 10;
+            const cm = Array.from({ length: n }, () => Array(n).fill(0));
+            framePreds.forEach((pred, i) => { if (pred >= 0 && pred < n) cm[labels[i]][pred]++; });
+            renderConfusionMatrix(cmPlots[method], cm, method);
+        } else {
+            renderConfusionMatrix(cmPlots[method], epochRecord?.[`${method}_confusion`] ?? null, method);
+        }
     }
 
     state.activeTsneStep = frameIdx;
@@ -154,24 +153,9 @@ function refreshAtFrame(frameIdx) {
 // ── animation (Play button in scatter heading) ────────────────────────────────
 
 let tsneAnimTimer = null;
-let tsneObserver  = null;
-
-async function lazyLoadTsne(data) {
-    if (state.currentTsneData || !data.tsne_path) return;
-    try {
-        const tsne = await loadTsneData(data.tsne_path);
-        state.stepAccData     = computeStepAccData(tsne);
-        state.currentTsneData = tsne;
-        initTsneSection({ ...data, tsne_probes: tsne });
-        const initFrame = stepSlider.disabled ? 0 : Number(stepSlider.value);
-        refreshAtFrame(initFrame);
-    } catch (e) {
-        console.warn("t-SNE lazy load failed:", e);
-    }
-}
 
 function initTsneSection(data) {
-    const tsneData = data.tsne_probes ?? state.currentTsneData;
+    const tsneData = data.tsne_probes;
 
     // Compute step-level accuracy from tsne preds
     state.stepAccData    = computeStepAccData(tsneData);
@@ -263,19 +247,7 @@ async function applyRun(runId) {
 
     renderComparisonTable(state.currentData.summary);
     populateExperimentMeta(state.currentData, selectedRun);
-
-    // Reset tsne state for new run
-    state.currentTsneData = null;
-    state.stepAccData = null;
-    if (tsneObserver) { tsneObserver.disconnect(); tsneObserver = null; }
-
-    if (state.currentData.tsne_probes) {
-        // Embedded (old format) — load immediately
-        initTsneSection(state.currentData);
-    } else if (state.currentData.tsne_path) {
-        // Lazy-load tsne after main render completes
-        lazyLoadTsne(state.currentData);
-    }
+    initTsneSection(state.currentData);
 
     // Epoch-only fallback: step-slider covers epochs
     if (!state.currentTsneData && epochSteps.length > 1) {

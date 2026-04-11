@@ -180,9 +180,3 @@ export async function loadRunData(path, loadToken) {
     setLoadingState({ visible: true, label: `Loading ${describePath(path)}`, percent: 45, status: "loading" });
     return normalizeRunPayload(await response.json());
 }
-
-export async function loadTsneData(tsnePath) {
-    const response = await fetch(withCacheBust(tsnePath), { cache: "no-store" });
-    if (!response.ok) throw new Error(`Failed to load t-SNE data: ${tsnePath}`);
-    return await response.json();
-}
