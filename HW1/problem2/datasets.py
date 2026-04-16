@@ -98,6 +98,38 @@ def make_moons_dataset(
     return bundle
 
 
+def make_hypersphere_dataset(
+    n_dims: int = 2,
+    n_samples: int = 200,
+    factor: float = 0.5,
+    noise: float = 0.1,
+    test_size: float = 0.3,
+    random_state: int = 11224001,
+) -> DatasetBundle:
+    """n-dimensional hypersphere classification (generalizes make_circles to n dims).
+
+    Class 0: points on outer hypersphere (radius 1.0)
+    Class 1: points on inner hypersphere (radius factor)
+    Both with added Gaussian noise.
+    """
+    rng = np.random.RandomState(random_state)
+    n_inner = n_samples // 2
+    n_outer = n_samples - n_inner
+
+    def sample_shell(n: int, radius: float) -> np.ndarray:
+        X = rng.randn(n, n_dims)
+        X /= np.linalg.norm(X, axis=1, keepdims=True)
+        X = X * radius + rng.randn(n, n_dims) * noise
+        return X.astype(np.float32)
+
+    X = np.vstack([sample_shell(n_outer, 1.0), sample_shell(n_inner, factor)])
+    y = np.hstack([np.zeros(n_outer, dtype=np.int64), np.ones(n_inner, dtype=np.int64)])
+
+    bundle = _standardize_split(X, y, test_size=test_size, random_state=random_state)
+    bundle.name = f"hypersphere_{n_dims}d"
+    return bundle
+
+
 def save_datasets(bundles: dict[str, DatasetBundle], path: str | Path) -> None:
     """Persist a dict of DatasetBundle objects to a .npz file."""
     path = Path(path)

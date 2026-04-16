@@ -17,9 +17,6 @@ class QuantumKernelClassifier:
         device_name: str = "default.qubit",
         seed: int = 11224001,
     ) -> None:
-        if num_qubits != 2:
-            raise ValueError("QuantumKernelClassifier currently expects num_qubits=2.")
-
         self.num_qubits = num_qubits
         self.device_name = device_name
         self.seed = seed
@@ -37,12 +34,15 @@ class QuantumKernelClassifier:
         self._kernel_circuit = kernel_circuit
 
     def _feature_map(self, x: np.ndarray) -> None:
-        qml.Hadamard(wires=0)
-        qml.Hadamard(wires=1)
-        qml.RZ(x[0], wires=0)
-        qml.RZ(x[1], wires=1)
-        qml.CNOT(wires=[0, 1])
-        qml.RZ(x[0] * x[1], wires=1)
+        for i in range(self.num_qubits):
+            qml.Hadamard(wires=i)
+        for i in range(self.num_qubits):
+            qml.RZ(x[i], wires=i)
+        for i in range(self.num_qubits):
+            j = (i + 1) % self.num_qubits
+            qml.CNOT(wires=[i, j])
+            qml.RZ(x[i] * x[j], wires=j)
+            qml.CNOT(wires=[i, j])
 
     def kernel(self, x1: np.ndarray, x2: np.ndarray) -> float:
         probabilities = self._kernel_circuit(x1, x2)

@@ -25,9 +25,6 @@ class DataReuploadingClassifier(nn.Module):
         seed: int = 11224001,
     ) -> None:
         super().__init__()
-        if num_qubits != 2:
-            raise ValueError("DataReuploadingClassifier currently expects num_qubits=2.")
-
         torch.manual_seed(seed)
         self.num_layers = num_layers
         self.num_qubits = num_qubits
@@ -55,7 +52,8 @@ class DataReuploadingClassifier(nn.Module):
                     qml.RX(encoded, wires=wire)
                     qml.RY(rotation_weights[layer, wire, 0], wires=wire)
                     qml.RZ(rotation_weights[layer, wire, 1], wires=wire)
-                qml.CNOT(wires=[0, 1])
+                for i in range(num_qubits):
+                    qml.CNOT(wires=[i, (i + 1) % num_qubits])
             return qml.expval(qml.PauliZ(0))
 
         self._raw_circuit = circuit

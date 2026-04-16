@@ -25,9 +25,6 @@ class ExplicitQuantumClassifier(nn.Module):
         seed: int = 11224001,
     ) -> None:
         super().__init__()
-        if num_qubits != 2:
-            raise ValueError("ExplicitQuantumClassifier currently expects num_qubits=2.")
-
         torch.manual_seed(seed)
         self.num_layers = num_layers
         self.num_qubits = num_qubits
@@ -39,13 +36,14 @@ class ExplicitQuantumClassifier(nn.Module):
 
         @qml.qnode(self.dev, interface="torch", diff_method=diff_method)
         def circuit(features: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-            qml.RX(features[0], wires=0)
-            qml.RX(features[1], wires=1)
+            for i in range(num_qubits):
+                qml.RX(features[i], wires=i)
             for layer in range(num_layers):
                 for wire in range(num_qubits):
                     qml.RY(weights[layer, wire, 0], wires=wire)
                     qml.RZ(weights[layer, wire, 1], wires=wire)
-                qml.CNOT(wires=[0, 1])
+                for i in range(num_qubits):
+                    qml.CNOT(wires=[i, (i + 1) % num_qubits])
             return qml.expval(qml.PauliZ(0))
 
         self._raw_circuit = circuit
