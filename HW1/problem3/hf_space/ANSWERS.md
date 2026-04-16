@@ -95,7 +95,9 @@ MLP head 為 `Linear(256→10)`（2,570 params）；QNN head 為 `Linear(256→8
 
 ## (d) 訓練曲線
 
-各 epoch 的 train/test accuracy 與 loss 曲線詳見互動介面 Training Curves 圖表。以下摘要關鍵 epoch：
+![Training Curves](../report_figs/prob3_d_training_curves.png)
+
+以下摘要關鍵 epoch：
 
 | Epoch | MLP train | MLP test | QNN train | QNN test |
 |---|---|---|---|---|

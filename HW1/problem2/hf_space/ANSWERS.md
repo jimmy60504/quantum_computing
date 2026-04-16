@@ -1,6 +1,6 @@
 # Problem 2 — 作答
 
-隨機種子：11224001。所有實驗使用 2 個量子位元，n_samples = 200（140 訓練 / 60 測試），訓練 50 個 epoch，學習率 0.05，批次大小 32。決策邊界圖使用最佳 run `q2-le4-lr8-e50`（explicit encoding layers LE = 4，reuploading layers LR = 8，50 epochs）。
+隨機種子：11224001。決策邊界圖（(b)）使用 2 個量子位元，n_samples = 200（140 訓練 / 60 測試），訓練 50 個 epoch，學習率 0.05，批次大小 32，最佳 run `q2-le4-lr8-e50`（explicit encoding layers LE = 4，reuploading layers LR = 8）。Fig. 6 重現實驗（(a)）以系統大小 $n$（量子位元數 = 輸入維度）為 x 軸，從 $n=2$ 到 $n=8$，5 個隨機種子，固定 4 層電路深度，使用 $n$ 維超球面資料集。
 
 ![Problem 2 — Dataset Overview](assets/preview_datasets.png)
 
@@ -8,19 +8,19 @@ Circle 資料集為同心圓結構（外圈 class 0，內圈 class 1）；Moons 
 
 ---
 
-## (a) 重現 Fig. 6 — Circle 資料集
+## (a) 重現 Fig. 6 — 超球面資料集
 
 Ref. [3] Fig. 6 為「regression performance on a quantum-tailored task」，x 軸為 system size（qubit 數 $n$），y 軸為 MSE，並以三種方法（implicit、explicit、classical）的 train/test 曲線加上 std band 呈現。
 
-我們使用 circle 分類資料集（binary classification），以 **層數 $L$（number of variational layers）** 作為 x 軸替代 system size，意義相同——都是衡量電路表達能力隨模型容量增加的變化趨勢。每個設定以 5 個隨機種子重複，陰影區域為標準差。MSE 採用 Brier score（$\text{MSE} = \mathbb{E}[(p - y)^2]$，$p \in [0,1]$）。
+我們直接以 **系統大小 $n$（量子位元數 = 輸入維度）** 作為 x 軸，忠實重現 Fig. 6 的橫軸定義。資料集使用 $n$ 維超球面（$n$-sphere binary classification）：外殼（class 0，radius 1.0）vs. 內殼（class 1，radius 0.5），以匹配幾何上的「量子適配任務」。三個模型均推廣至任意 $n$ 量子位元：ring CNOT 拓樸 + ZZ feature map。每個 $(n, \text{seed})$ 組合重複 5 個隨機種子，陰影為標準差。MSE 採用 Brier score（$\text{MSE} = \mathbb{E}[(p - y)^2]$，$p \in [0,1]$）。
 
-![Problem 2 (a) — MSE vs layers, circle dataset (Fig. 6 style)](../report_figs/prob2_a_fig6.png)
+![Problem 2 (a) — MSE vs system size n, hypersphere dataset (Fig. 6 style)](../report_figs/prob2_a_fig6.png)
 
-三種方法的行為與 Ref. [3] Fig. 6 定性一致：
+三種方法的行為：
 
-- **Data Reuploading**（綠，對應 paper 的 implicit）：train MSE 隨 $L$ 增加穩定下降趨近 0，test MSE 也隨 $L$ 改善並在 $L \geq 4$ 後平穩於 ~0.05。訓練誤差與測試誤差之間的間距反映出輕微過擬合，但整體泛化仍優於其他兩者。
-- **Explicit**（紅，對應 paper 的 explicit）：train 與 test MSE 均停留在 ~0.16，幾乎不隨 $L$ 改變。這正對應 paper 中 explicit 模型因單次 encoding 造成可達 Fourier 頻率受限、無法從增加層數中獲益的現象。
-- **Implicit Kernel**（藍，對應 paper 的 classical）：L 無關，呈水平線；test MSE ~0.08，介於另外兩者之間。Kernel 方法一次性擬合 Gram matrix，不依賴迭代深度，與 paper 中 classical baseline 的平穩曲線行為一致。
+- **Data Reuploading**（綠，對應 paper 的 implicit）：在 $n=2$ 時表現最佳（test MSE ~0.06），但 test MSE 隨 $n$ 增加迅速上升，至 $n=8$ 達 ~0.18。原因在於固定 4 層電路深度，面對指數增長的 $n$ 維分類邊界，模型容量出現瓶頸；train/test 間差距反映輕微過擬合在 $n$ 增大後趨於一致。
+- **Explicit**（紅，對應 paper 的 explicit）：train 與 test MSE 從 $n=2$（~0.145）平穩上升至 $n=8$（~0.185），幾乎無訓練/測試差距。此行為正對應 single encoding 的硬性頻率上限：即使增加 $n$，可達 Fourier 頻率集合仍受 encoding 次數限制，無法擬合更複雜邊界。
+- **Implicit Kernel**（藍，對應 paper 的 classical）：test MSE 從 $n=2$（~0.07）緩慢升至 $n=7$–8（~0.12），是三者中最穩健的方法。kernel 訓練 MSE 基本維持在 0.06–0.07，顯示 Gram matrix 擬合不隨 $n$ 退化——量子核函數的 ZZ feature map 對超球面幾何的對稱結構保持較好的 kernel alignment。
 
 ## (b) 決策邊界
 
