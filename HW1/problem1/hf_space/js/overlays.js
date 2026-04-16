@@ -77,6 +77,21 @@ function renderMarkdown(markdown) {
     return globalThis.marked?.parse?.(markdown) ?? `<pre>${escapeHtml(markdown)}</pre>`;
 }
 
+function renderMath(el) {
+    if (globalThis.renderMathInElement) {
+        renderMathInElement(el, {
+            delimiters: [
+                { left: "$$", right: "$$", display: true },
+                { left: "$", right: "$", display: false },
+            ],
+            throwOnError: false,
+        });
+    } else {
+        // KaTeX not loaded yet — retry once it fires
+        window.addEventListener("load", () => renderMath(el));
+    }
+}
+
 function enhanceMarkdownImages() {
     const analysisImages = Array.from(analysisMarkdown?.querySelectorAll("img") || []);
     analysisImages.forEach((image) => {
@@ -95,6 +110,7 @@ async function ensureMarkdownDocument(sourcePath) {
     if (state.markdownCache[sourcePath]) {
         analysisMarkdown.innerHTML = state.markdownCache[sourcePath];
         enhanceMarkdownImages();
+        renderMath(analysisMarkdown);
         return;
     }
 
@@ -107,6 +123,7 @@ async function ensureMarkdownDocument(sourcePath) {
         const rendered = renderMarkdown(markdown);
         analysisMarkdown.innerHTML = rendered;
         enhanceMarkdownImages();
+        renderMath(analysisMarkdown);
         state.markdownCache[sourcePath] = rendered;
     } catch (error) {
         console.error(error);

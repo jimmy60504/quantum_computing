@@ -95,7 +95,7 @@ MLP head 為 `Linear(256→10)`（2,570 params）；QNN head 為 `Linear(256→8
 
 ## (d) 訓練曲線
 
-![Training Curves](../report_figs/prob3_d_training_curves.png)
+![Training Curves](assets/prob3_d_training_curves.png)
 
 以下摘要關鍵 epoch：
 

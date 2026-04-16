@@ -28,7 +28,7 @@ $$f(x_1, x_2) = \sin(e^{x_1} + x_2)$$
 - Best test MSE: $4.91 \times 10^{-3}$（低於題目要求的 $0.1$）
 - Final test MSE: $6.42 \times 10^{-3}$
 
-![Training vs Test MSE — same_axis_reupload (q=1, L=2)](../report_figs/prob1_a_loss_curves.png)
+![Training vs Test MSE — same_axis_reupload (q=1, L=2)](assets/prob1_a_loss_curves.png)
 
 如圖所示，train MSE 與 test MSE 在整個訓練過程中均單調下降，無過擬合跡象。Test MSE 在第 3 個 epoch 即跌破 $0.1$ 閾值，至第 10 epoch 收斂至約 $6 \times 10^{-3}$。Train 與 test 之間的誤差間距（約兩個數量級）反映的是特徵先驗的校準問題：模型雖保住了正確的 additive 幾何結構，但可學習的 scale/bias 參數還未完全對齊 $e^{x_1}$ 的尺度——這是此配置的主要殘差來源，而非過擬合。
 
@@ -49,17 +49,17 @@ $$f(x_1, x_2) = \sin(e^{x_1} + x_2)$$
 
 | same_axis_reupload | same_axis_rot |
 |:---:|:---:|
-| ![](../report_figs/same-axis-reupload-q1-l2-e10_circuit.png) | ![](../report_figs/same-axis-rot-q1-l2-e10_circuit.png) |
+| ![](assets/same-axis-reupload-q1-l2-e10_circuit.png) | ![](assets/same-axis-rot-q1-l2-e10_circuit.png) |
 
 | same_axis_poly | same_axis_raw |
 |:---:|:---:|
-| ![](../report_figs/same-axis-poly-q1-l2-e10_circuit.png) | ![](../report_figs/same-axis-raw-q1-l2-e10_circuit.png) |
+| ![](assets/same-axis-poly-q1-l2-e10_circuit.png) | ![](assets/same-axis-raw-q1-l2-e10_circuit.png) |
 
 | same_axis_twoqubit | twoqubit_raw_no_reupload |
 |:---:|:---:|
-| ![](../report_figs/same-axis-twoqubit-q2-l2-e10_circuit.png) | ![](../report_figs/twoqubit-raw-no-reupload-q2-l1-e10_circuit.png) |
+| ![](assets/same-axis-twoqubit-q2-l2-e10_circuit.png) | ![](assets/twoqubit-raw-no-reupload-q2-l1-e10_circuit.png) |
 
-![Train and Test MSE across all configurations](../report_figs/prob1_b_loss_curves.png)
+![Train and Test MSE across all configurations](assets/prob1_b_loss_curves.png)
 
 上圖將六組配置的 train MSE（虛線）與 test MSE（實線）畫在同一張圖上，log scale 下兩群自然分開。從 test MSE 可以觀察到明顯的分群：`same_axis_reupload` 與 `same_axis_rot` 從第一個 epoch 起就持續下降並突破 $0.1$ 閾值；`same_axis_poly` 和 `same_axis_raw` 在中段有所進展但最終穩定在較高水平；`same_axis_twoqubit` 收斂更慢；`twoqubit_raw_no_reupload` 的 test MSE 幾乎橫向不動，始終停在 $0.2$ 以上。值得注意的是，train MSE 的排序與 test MSE 幾乎相反——train 收斂最快的未必能外推到測試域——這再次說明本題的核心挑戰在於結構先驗，而非優化本身。
 
@@ -79,7 +79,7 @@ $$f(x_1, x_2) = \sum_{\omega_1 \in \Omega_1,\, \omega_2 \in \Omega_2} c_{\omega_
 
 其中 $\Omega_1, \Omega_2 \subseteq \{-L, \ldots, L\}$。本題目標函數 $\sin(e^{x_1} + x_2)$ 在 $x_2$ 方向只需一個頻率分量（$\omega_2 = \pm 1$），但在 $x_1$ 方向的有效頻率取決於 $e^{x_1}$ 的 Taylor 展開，因此需要多層才能捕捉高階分量。
 
-![Fourier Spectrum Comparison](../report_figs/prob1_c_fourier_comparison.png)
+![Fourier Spectrum Comparison](assets/prob1_c_fourier_comparison.png)
 
 然而，單看 2D heatmap 和 Fourier spectrum 有一個實際困難：四組模型的上排 2D 輸出圖在色彩上差異微妙，不容易直接判斷曲面幾何；spectrum 的能量分佈差異也需要一定解讀門檻。以下先對 spectrum 逐一說明，再用 3D 曲面圖補充，讓頻率空間的差異與幾何行為對應起來。
 
@@ -87,25 +87,25 @@ $$f(x_1, x_2) = \sum_{\omega_1 \in \Omega_1,\, \omega_2 \in \Omega_2} c_{\omega_
 
 **`same_axis_reupload`**：主頻位置與 target 對齊良好，十字型結構清晰可見，但整體幅度略低。Spectrum 的這個特徵對應到 3D 曲面上「方向正確、幅度欠校準」的殘差——
 
-![same_axis_reupload 3D surface](../report_figs/same_axis_reupload.png)
+![same_axis_reupload 3D surface](assets/same_axis_reupload.png)
 
 Train domain 曲面貼合樣本點，弧度正確；test domain 延續了相同的下彎曲率，整體幾何方向正確，與 (a) 中分析的 scale/bias 校準未完全收斂一致。
 
 **`same_axis_poly`**：十字型輪廓尚存，但 $\omega_{x_1}$ 方向的能量分布與 target 明顯不對稱。這個頻率空間的非對稱性對應到一個特殊的幾何失敗：
 
-![same_axis_poly 3D surface](../report_figs/same_axis_poly.png)
+![same_axis_poly 3D surface](assets/same_axis_poly.png)
 
 Poly 最終學出來的 train surface 傾斜方向是反的——曲面從 $x_1 = 0$ 側的高值向 $x_1 = 0.5$ 側往下傾，而 target 在訓練域內的 $x_1$ 方向應是向上的。這代表多項式係數在訓練過程中經歷了一次方向翻轉：模型先在某個較低的 test MSE 暫時駐留，隨後係數繼續更新、整個曲面轉向，穩定到最終的鏡像解。這正是 (b) loss curve 上 epoch 2–4 出現下凹再回升的來源——Fourier spectrum 中 $\omega_{x_1}$ 方向能量的不對稱，是這次翻轉留下的頻率空間印記。
 
 **`same_axis_raw`**：十字型能量輪廓尚存，但明顯更為分散，高頻噪訊增加。以 raw $x_1$ 代替 $e^{x_1}$，模型試圖用 $x_1$ 的低階 Fourier 分量去近似所需的非線性組合，能量洩漏至不相關的頻率位置——
 
-![same_axis_raw 3D surface](../report_figs/same_axis_raw.png)
+![same_axis_raw 3D surface](assets/same_axis_raw.png)
 
 對應到 3D 上，train domain 曲面比 `same_axis_reupload` 更平，四個角落的弧度明顯不足；test domain 雖仍有斜度，但幅度偏小，test MSE 約高出六倍。
 
 **`twoqubit_raw_no_reupload`**：十字型結構幾乎消失，能量分佈混亂，只剩極低頻的直流分量（DC term）。Ref. [1] 指出電路深度直接決定 Fourier series 的截斷頻率；此模型缺乏 $e^{x_1}$ 先驗且只做一次 encoding，可達頻率集合最為受限，這在 3D 曲面上表現得最為直接——
 
-![twoqubit_raw_no_reupload 3D surface](../report_figs/twoqubit_raw_no_reupload.png)
+![twoqubit_raw_no_reupload 3D surface](assets/twoqubit_raw_no_reupload.png)
 
 Train domain 曲面幾近一片平板，停在 value ≈ 1 附近，四個角落均明顯偏離樣本點——模型退化為對訓練集的加權平均，無法學到任何有效弧度。其直接後果是 test domain 也輸出一個幾乎不彎曲的平面，浮在 $[0.5, 1]$ 的高度，無法跟隨測試點向下彎至負值。這正是 Fourier spectrum 中十字型結構消失的幾何詮釋：模型學不到 $\omega_{x_2} = \pm 1$ 的主頻分量，自然也就無法產生任何方向上的正弦曲率。
 
