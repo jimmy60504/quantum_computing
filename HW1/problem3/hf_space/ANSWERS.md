@@ -32,16 +32,9 @@ RY(xᵢ) 作用於量子位元 i，i = 0, 1, …, 7
 
 量子可訓練參數：4 layers × 8 qubits × 2 旋轉 = **64 個量子參數**。
 
-電路圖示（以 1 層為例，8 qubits）：
+完整電路圖（8 qubits × 4 layers，PennyLane 繪製）：
 
-```
-q0: ─[RY(x₀)]─[RY(θ)]─[RZ(φ)]─●──────────X─  →  ⟨Z₀⟩
-q1: ─[RY(x₁)]─[RY(θ)]─[RZ(φ)]─X─●────────── →  ⟨Z₁⟩
-q2: ─[RY(x₂)]─[RY(θ)]─[RZ(φ)]───X─●──────── →  ⟨Z₂⟩
- ⋮        ⋮        ⋮        ⋮
-q7: ─[RY(x₇)]─[RY(θ)]─[RZ(φ)]─────────X─●── →  ⟨Z₇⟩
-              encoding       variational
-```
+![Problem 3 Circuit — 8 qubits × 4 layers](assets/prob3_circuit.png)
 
 ### 量測與後處理
 
