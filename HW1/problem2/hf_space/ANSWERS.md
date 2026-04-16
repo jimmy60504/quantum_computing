@@ -2,6 +2,10 @@
 
 隨機種子：11224001。所有實驗使用 2 個量子位元，n_samples = 200（140 訓練 / 60 測試），訓練 50 個 epoch，學習率 0.05，批次大小 32。決策邊界圖使用最佳 run `q2-le4-lr8-e50`（explicit encoding layers LE = 4，reuploading layers LR = 8，50 epochs）。
 
+![Problem 2 — Dataset Overview](assets/preview_datasets.png)
+
+Circle 資料集為同心圓結構（外圈 class 0，內圈 class 1）；Moons 資料集為兩個交錯月牙形（class 0 為上月牙，class 1 為下月牙）。兩者均為非線性可分問題，藉此考驗三種 QML 方法的決策邊界表達能力。
+
 ---
 
 ## (a) 重現 Fig. 6 — Circle 資料集訓練曲線
