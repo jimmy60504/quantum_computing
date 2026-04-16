@@ -1,6 +1,6 @@
 # Problem 2 — 作答
 
-隨機種子：11224001。所有實驗使用 2 個量子位元，n_samples = 200（140 訓練 / 60 測試），訓練 50 個 epoch，學習率 0.05，批次大小 32。實驗設定：`q2-le4-lr4-e50`（explicit encoding layers LE = 4，reuploading layers LR = 4）。
+隨機種子：11224001。所有實驗使用 2 個量子位元，n_samples = 200（140 訓練 / 60 測試），訓練 50 個 epoch，學習率 0.05，批次大小 32。決策邊界圖使用最佳 run `q2-le4-lr8-e50`（explicit encoding layers LE = 4，reuploading layers LR = 8，50 epochs）。
 
 ---
 
@@ -24,7 +24,7 @@
 
 - **Explicit**：在 circle 資料集上產生的邊界大致呈圓形但不夠精確，部分樣本被錯誤分類；在 moons 上邊界較平滑，但在兩側末端略有偏差，整體邊界形狀受限於單次 encoding 的低表達能力。
 - **Implicit Kernel**：在 circle 上形成較緊密的圓形邊界，準確率 96.7%；在 moons 上邊界較不規則，準確率下降至 85.0%，反映量子特徵映射對非對稱幾何結構的適應性較弱。
-- **Data Reuploading**：在兩個資料集上均產生最銳利、最貼近真實分布的決策邊界，測試準確率各達 93.7%（此圖為訓練結束狀態）與 98.3%，邊界輪廓緊密包覆樣本點。
+- **Data Reuploading**：在兩個資料集上均產生最銳利、最貼近真實分布的決策邊界，測試準確率各達 96.7%（circle）與 100%（moons），邊界輪廓緊密包覆樣本點。
 
 ## (c) 比較表
 
@@ -34,8 +34,8 @@
 | Explicit | Moons | 83.3 % | 16 個參數 | ≈ 20 s |
 | Implicit Kernel | Circle | 96.7 % | 19,600 次核計算 | ≈ 10 s |
 | Implicit Kernel | Moons | 85.0 % | 19,600 次核計算 | ≈ 10 s |
-| Data Reuploading | Circle | 98.3 % | 32 個參數 | ≈ 30 s |
-| Data Reuploading | Moons | 98.3 % | 32 個參數 | ≈ 30 s |
+| Data Reuploading | Circle | 96.7 % | 48 個參數 | ≈ 45 s |
+| Data Reuploading | Moons | 100.0 % | 48 個參數 | ≈ 45 s |
 
 核函數計算次數 = 140 × 140 = 19,600（完整訓練 Gram matrix）。
 
