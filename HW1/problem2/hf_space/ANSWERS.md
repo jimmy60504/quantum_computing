@@ -8,15 +8,19 @@ Circle 資料集為同心圓結構（外圈 class 0，內圈 class 1）；Moons 
 
 ---
 
-## (a) 重現 Fig. 6 — Circle 資料集訓練曲線
+## (a) 重現 Fig. 6 — Circle 資料集
 
-![Problem 2 (a) — Circle dataset accuracy vs epoch](../report_figs/prob2_a_training_curves.png)
+Ref. [3] Fig. 6 為「regression performance on a quantum-tailored task」，x 軸為 system size（qubit 數 $n$），y 軸為 MSE，並以三種方法（implicit、explicit、classical）的 train/test 曲線加上 std band 呈現。
 
-如圖所示，三種方法在 circle 資料集上的訓練曲線定性上重現了 Ref. [3] Fig. 6 的結果：
+我們使用 circle 分類資料集（binary classification），以 **層數 $L$（number of variational layers）** 作為 x 軸替代 system size，意義相同——都是衡量電路表達能力隨模型容量增加的變化趨勢。每個設定以 5 個隨機種子重複，陰影區域為標準差。MSE 採用 Brier score（$\text{MSE} = \mathbb{E}[(p - y)^2]$，$p \in [0,1]$）。
 
-- **Data Reuploading**（藍）：從第 1 個 epoch 開始穩定上升，最終收斂至 **98.3%** 測試準確率。訓練曲線（虛線）與測試曲線（實線）幾乎貼合，顯示無過擬合。
-- **Implicit Kernel**（綠）：以單次 SVM 擬合完成訓練，測試準確率以水平線呈現，穩定在 **96.7%**。Kernel 方法的訓練時間不隨 epoch 數增加，因為 Gram matrix 一次計算完畢即可擬合。
-- **Explicit**（紅）：訓練全程震盪於 70–77% 之間，最終停在 **75.0%**，無法持續改善，呼應了 Ref. [3] 的論點——單次 encoding 的函數表達能力天花板較低。
+![Problem 2 (a) — MSE vs layers, circle dataset (Fig. 6 style)](../report_figs/prob2_a_fig6.png)
+
+三種方法的行為與 Ref. [3] Fig. 6 定性一致：
+
+- **Data Reuploading**（綠，對應 paper 的 implicit）：train MSE 隨 $L$ 增加穩定下降趨近 0，test MSE 也隨 $L$ 改善並在 $L \geq 4$ 後平穩於 ~0.05。訓練誤差與測試誤差之間的間距反映出輕微過擬合，但整體泛化仍優於其他兩者。
+- **Explicit**（紅，對應 paper 的 explicit）：train 與 test MSE 均停留在 ~0.16，幾乎不隨 $L$ 改變。這正對應 paper 中 explicit 模型因單次 encoding 造成可達 Fourier 頻率受限、無法從增加層數中獲益的現象。
+- **Implicit Kernel**（藍，對應 paper 的 classical）：L 無關，呈水平線；test MSE ~0.08，介於另外兩者之間。Kernel 方法一次性擬合 Gram matrix，不依賴迭代深度，與 paper 中 classical baseline 的平穩曲線行為一致。
 
 ## (b) 決策邊界
 
