@@ -1,0 +1,74 @@
+Problem 3: Low Autocorrelation Binary Sequences (LABS)
+
+The Low Autocorrelation Binary Sequences (LABS) problem is a difficult
+combinatorial optimization problem. Given a binary sequence
+s = (s_1, ..., s_N), with s_i in {-1, +1}, define the aperiodic
+autocorrelations and sidelobe energy:
+
+    C_k(s) = sum_{i=1}^{N-k} s_i s_{i+k}
+    E(s)   = sum_{k=1}^{N-1} C_k(s)^2
+
+and the merit factor:
+
+    F(s) = N^2 / (2 E(s)).
+
+The goal is to find s that maximizes F, equivalently minimizes E.
+
+LABS is harder than Max-Cut because the cost contains nonlocal 2-spin and
+4-spin interactions after expanding the squared autocorrelations, and because
+the energy landscape is glassy with exponentially many local minima.
+
+Implement and benchmark at least two advanced quantum or hybrid strategies.
+Suggested strategies include quartic-Hamiltonian QAOA, quadratization, VQE,
+simulated quantum annealing, warm-starting / INTERP / RQAOA, classical optimizer
+comparison, hybrid quantum-classical search, or another novel quantum/hybrid
+strategy.
+
+Benchmark target:
+
+    N = 20
+    E* = 26
+    F* = 400 / 52 ~= 7.692
+    r = F_best / F*
+    goal: r >= 0.85 using N_eval <= 5000
+
+For N = 20, this threshold effectively requires finding an optimal sequence
+with E = 26, since the next energy level E = 34 has only r ~= 0.765.
+
+Report requirements:
+
+(a) Implement E(s) and F(s). Verify on the N = 11 Barker sequence
+    +++---+--+-, whose autocorrelations give E = 5 and F = 12.10 under this
+    convention. State which two or more strategies were chosen and how LABS is
+    encoded into a Hamiltonian.
+
+(b) Apply each strategy to N = 20. Report best sequence found, E_best, F_best,
+    r, and N_eval.
+
+(c) Compare strategies with random sampling under the same total shot budget
+    and with a purely classical baseline such as simulated annealing or simple
+    Tabu search. Plot convergence curves, cost vs. iteration, on the same axes.
+
+(d) Discuss in 5-8 sentences which strategy works best, why LABS differs from
+    Max-Cut, and which design choices matter most. Relate findings to Ref. [4]
+    or Ref. [6].
+
+Verification instances:
+
+    N = 5:  E* = 2, F* = 6.25, example +++-+
+    N = 11: E* = 5, F* = 12.10, Barker sequence +++---+--+-
+    N = 13: E* = 6, F* ~= 14.083, Barker sequence
+
+Quartic Hamiltonian:
+
+    E(s) = sum_{k=1}^{N-1} sum_{i,j=1}^{N-k}
+           s_i s_{i+k} s_j s_{j+k}
+
+Under s_i -> Z_i:
+
+    H_C^LABS = sum_{k=1}^{N-1} sum_{i,j=1}^{N-k}
+               Z_i Z_{i+k} Z_j Z_{j+k}
+
+Terms with i = j reduce to identity, overlapping pairs can reduce to 2-local
+terms, and identity terms add N(N - 1) / 2 to E. This constant may be dropped
+during optimization but must be restored when reporting E and F.

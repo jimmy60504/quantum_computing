@@ -15,7 +15,7 @@ from pennylane import numpy as pnp
 # Problem data
 # ---------------------------------------------------------------------------
 
-SEED = 0  # TODO: replace with your student ID
+SEED = 11224001
 N_NODES = 8
 EDGE_PROB = 0.5
 

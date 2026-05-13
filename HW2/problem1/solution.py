@@ -15,7 +15,7 @@ import numpy as np
 # Problem data
 # ---------------------------------------------------------------------------
 
-SEED = 0  # TODO: replace with your student ID
+SEED = 11224001
 
 WEIGHTS = np.array([23, 31, 29, 44, 53, 38, 63, 85, 89, 82])
 VALUES  = np.array([92, 57, 49, 68, 60, 43, 67, 84, 87, 72])
