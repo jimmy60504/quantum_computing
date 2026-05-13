@@ -45,21 +45,7 @@ $$H_C^{\text{LABS}} = \sum_{k,i,j} Z_i Z_{i+k} Z_j Z_{j+k}$$
 
 ---
 
-## Part (b)：三種量子策略
-
-### 策略一：Quartic-Hamiltonian QAOA（$p=2$）
-
-使用 PennyLane + `lightning.qubit`，直接對 quartic $H_C^{\text{LABS}}$ 做 QAOA：
-
-$$|\gamma, \beta\rangle = \prod_{l=1}^{p} e^{-i\beta_l H_M} e^{-i\gamma_l H_C} |+\rangle^{\otimes N}$$
-
-Adam 優化 200 步，$N_\text{eval} = 200$。
-
-### 策略二：VQE with Hardware-Efficient Ansatz（$L=4$ 層）
-
-使用分層 RY 旋轉 + 環狀 CNOT 的硬體友好型 ansatz，20 個 qubit，$5 \times 20 = 100$ 個可訓練參數，Adam 優化 200 步。
-
-### 策略三：PCE VQE（Pauli Correlation Encoding）
+## Part (b)：PCE VQE（Pauli Correlation Encoding）
 
 基於 Sciorilli et al. (arXiv:2506.17391, 2025)。
 
@@ -80,9 +66,13 @@ $$\mathcal{L}(\theta) = \sum_{k=1}^{N-1}\left(\sum_{i=1}^{N-k} \tilde{x}_i \tild
 - $\tanh$ 鬆弛把期望值推向 $\pm 1$，使連續解更接近離散解
 - $-\beta \sum \tilde{x}_i^2$ 正規化防止 trivial 解 $\tilde{x}_i = 0$
 
-**解碼**：$s_i = \text{sign}(\langle \Pi_i \rangle)$，接著每次 restart 後用 SA polish。
+**訓練與解碼**：loss 在連續的 $\tilde{x}_i$ 上做梯度下降；每隔固定步數把目前的 Pauli 期望值解碼成
 
-**多次 restart**：4-qubit 電路每次 restart 約 3 秒，同樣 5000 次 circuit eval 預算可執行 25 次 restart（相比 VQE 只能跑 1 次）。
+$$s_i = \text{sign}(\langle \Pi_i \rangle)$$
+
+並直接計算離散 LABS energy，保留目前找到的最佳序列。這個版本的 PCE 結果是直接由 Pauli correlation 解碼得到，沒有再接 SA polish。
+
+**多次 restart**：使用 PyTorch statevector backend，把 128 個初始點做成一個 batch 同時訓練。最終找到 $E=26$ 的那次 run 在第 10 個 gradient step 解碼成功，因此記為 $128 \times 10 = 1280$ 次 batched circuit evaluations。
 
 ---
 
@@ -90,14 +80,14 @@ $$\mathcal{L}(\theta) = \sum_{k=1}^{N-1}\left(\sum_{i=1}^{N-k} \tilde{x}_i \tild
 
 ### 結果表
 
-| 策略 | $E_\text{best}$ | $F_\text{best}$ | $r$ | $N_\text{eval}$ | Qubit |
+| 方法 | $E_\text{best}$ | $F_\text{best}$ | $r$ | 預算 | qubits |
 |------|------:|------:|------:|------:|------:|
-| QAOA-quartic $p=2$ | 102 | 1.961 | 0.255 | 200 | 20 |
-| VQE-HEA $L=4$ | 38 | 5.263 | 0.684 | 200 | 20 |
-| **PCE-torch $m=4$, $L=4$** | **26** | **7.692** | **1.000** | **1,280** | **4** |
-| Random | 50 | 4.000 | 0.520 | 5,000 | — |
-| SA（自動校準 $T_0$） | 26 | 7.692 | 1.000 | 0 | — |
-| **目標** | **26** | **7.692** | **≥0.85** | **≤5,000** | — |
+| **PCE-torch** | **26** | **7.692** | **1.000** | **1,280 evals** | **4** |
+| Random | 50 | 4.000 | 0.520 | 5,000 samples | — |
+| SA（校準 $T_0$） | 26 | 7.692 | 1.000 | 50,000 moves | — |
+| **目標** | **26** | **7.692** | **≥0.85** | **≤5,000 evals** | — |
+
+註：我另外試過直接對 quartic Hamiltonian 做 QAOA，以及 20-qubit hardware-efficient VQE；但那兩個版本沒有做完整的深度、初始化與 optimizer sweep，因此不列入正式比較，避免把探索性結果誤寫成公平 benchmark。
 
 ### PCE ansatz 修正：$E=34$ 不是編碼極限
 
@@ -109,7 +99,7 @@ $$\Delta E_\text{min} = 62 - 34 = 28$$
 
 固定 $T_0=3$ 的 SA 接受此翻轉的機率 $e^{-28/3} \approx 10^{-4}$，即使跑 50,000 步也出不去。
 
-**解法**：自動校準 $T_0 = \text{median}(\Delta E_\text{neighbours}) / \ln 2 \approx 104$，使初始接受率約 50%。以此溫度從隨機出發，43 次重啟 × 10,000 步（4.1 秒）找到全局最優 $E=26$，$r=1.000$。
+**解法**：自動校準 $T_0 = \text{median}(\Delta E_\text{neighbours}) / \ln 2 \approx 104$，使初始接受率約 50%。以此溫度從隨機序列出發，總共 50,000 個 classical moves 內找到全局最優 $E=26$，$r=1.000$。
 
 ### LABS 景觀（Hamming Scatter）
 
@@ -121,9 +111,9 @@ $$\Delta E_\text{min} = 62 - 34 = 28$$
 
 ## Part (d)：討論
 
-**哪個量子策略最有效，為什麼？**
+**PCE 為什麼有效？**
 
-PCE 是三個量子策略中最好的（$r=1.000$，4 qubit，$N_\text{eval}=1280$）。關鍵在三點：第一，4-qubit 電路大小固定不隨 $N$ 增長，從根本上降低 barren plateau 風險；第二，non-commuting Pauli strings 提供高維的 correlation readout；第三，ansatz 必須含有 `RX/RY/RZ` 這類 complex rotations，否則含 $Y$ 的 observables 會被 RY-only 實數態鎖死。
+PCE 在本題達到 $r=1.000$（4 qubit，$N_\text{eval}=1280$）。關鍵在三點：第一，4-qubit 電路大小固定不隨 $N$ 增長，從根本上降低 barren plateau 風險；第二，non-commuting Pauli strings 提供高維的 correlation readout；第三，ansatz 必須含有 `RX/RY/RZ` 這類 complex rotations，否則含 $Y$ 的 observables 會被 RY-only 實數態鎖死。
 
 **LABS 與 Max-Cut 景觀有何不同？**
 
@@ -131,7 +121,7 @@ Max-Cut 是 2-local 問題，景觀有漏斗結構：距最優解越近的態能
 
 **SA 溫度對結果的決定性影響**
 
-固定 $T_0=3$ 的 SA 在 LABS 上失效，因為能量壁 $\Delta E \approx 28 \gg T_0$。改用局部景觀自動校準的 $T_0 \approx 104$ 後，SA 從隨機出發能可靠找到 $E=26$。這表明對 LABS，**SA 溫度尺度的正確設定**比量子方法的選擇影響更大。
+固定 $T_0=3$ 的 SA 在 LABS 上失效，因為能量壁 $\Delta E \approx 28 \gg T_0$。改用局部景觀自動校準的 $T_0 \approx 104$ 後，SA 從隨機出發能找到 $E=26$。這表明在 LABS 上，演算法是否成功往往取決於兩件事：搜尋動力學要能跨過能量壁，而表示法或 ansatz 也要能表達真正需要的 correlation。
 
 **PCE 對 SA 的理論優勢（及 N=20 的侷限）**
 
