@@ -13,6 +13,7 @@
 - `problem1_modeling_notes.md`：HW1 Problem 1 模型實驗結論與負向結果摘要
 - `qml_stack_notes.md`：QML 框架定位與未來 image 策略
 - `source_hygiene.md`：研究素材中的 prompt injection 與來源清理筆記
+- `course_references.md`：課綱提供的參考書目與線上資源（含指定教科書）
 - `templates/research_direction_template.md`：研究方向模板
 - `templates/experiment_plan_template.md`：實驗模板（方向確定後再使用）
 
